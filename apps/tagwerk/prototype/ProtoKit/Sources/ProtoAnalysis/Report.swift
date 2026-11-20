@@ -41,8 +41,9 @@ public func analyse(phoneLog: String, computerLog: String, thresholdsJSON: Strin
         out.append("| \(k) | \(x.reconnectMinutes[k].map { $0.isFinite ? f($0) : "never" } ?? "not measured") |")
     }
     out += ["", "## Idle seconds", "", "Samples while away (after an `away` marker): \(x.idleSamples); agreeing: \(share(x.idleAgreeShare))", "",
-            "## Check-in", "", "Shown: \(x.checkinsShown); shown on both, answered on one, dismissed on the other: \(share(x.checkinCompleteShare))",
-            "Longest answer-to-dismissal latency after the clock offset: \(x.checkinLatencyMaxS.map { f($0, 1) + " s" } ?? "not measured")", "",
+            "## Check-in", "", "Shown: \(x.checkinsShown); shown on both, answered on one, dismissed or cancelled on the other: \(share(x.checkinCompleteShare))",
+            "The phone counts as shown when it logged `notification_scheduled` or `checkin_shown` (the latter only in the foreground).",
+            "Longest latency from the computer showing it to the phone scheduling it, after the clock offset: \(x.checkinLatencyMaxS.map { f($0, 1) + " s" } ?? "not measured")", "",
             "## Battery", "", "Drop per hour (percentage points, not charging): \(x.batteryDropPerHour.map { f($0, 1) } ?? "not measured")", "",
             "## Sensor permission", "",
             "Prompt recorded: \(x.sensorPromptSeen.map { $0 ? "seen" : "not seen" } ?? "not measured")", "",
@@ -52,6 +53,8 @@ public func analyse(phoneLog: String, computerLog: String, thresholdsJSON: Strin
         out.append("| \(k) | \(p.attempts) | \(p.successes) | \(p.medianMs.map { f($0, 0) } ?? "n/a") |")
     }
     if x.pairing.isEmpty { out.append("| not measured | | | |") }
+    out += ["", "Attempts and successes are the computer's (success = code match). Phone writes logged: "
+            + (x.phoneWrites.isEmpty ? "none" : x.phoneWrites.keys.sorted().map { "\($0) \(x.phoneWrites[$0]!)" }.joined(separator: ", "))]
     out += ["", "## Thresholds", "", "| Threshold | Limit | Measured | Verdict |", "| --- | --- | --- | --- |"]
     for r in results { out.append("| \(r.key) | \(r.limit) | \(f(r.value, 3)) | \(r.verdict.rawValue) |") }
     out += ["", "## Marker labels", ""] + MarkerLabel.all.map { "- `\($0)`" }

@@ -28,6 +28,8 @@ struct ExtraMetrics {
     var batteryDropPerHour: Double?
     var sensorPromptSeen: Bool?
     var pairing: [String: PairingStats] = [:]
+    /// Pairing writes the phone logged, by method; never added to the computer's attempts.
+    var phoneWrites: [String: Int] = [:]
 
     var reconnectMax: Double? { reconnectMinutes.values.max() }
 
@@ -112,24 +114,26 @@ func computeExtra(_ events: [Stamped], nearIv: [Interval], awayIv: [Interval], h
     }
     if x.idleSamples > 0 { x.idleAgreeShare = Double(agree) / Double(x.idleSamples) }
 
-    // Check-in: shown on both devices, answered on one, dismissed on the other. Latency is answer to dismissal.
-    var byId: [String: [(t: Double, role: DeviceRole, kind: Character)]] = [:]
+    // Check-in: shown on both devices, answered on one, dismissed or cancelled on the other. The phone only logs
+    // checkin_shown in the foreground (willPresent), so a scheduled notification counts as shown there. Latency is
+    // the computer showing it to the phone scheduling it, which is the link's delay.
+    struct Seen { var shown: [DeviceRole: Double] = [:], answered: [DeviceRole] = [], dismissed: [DeviceRole] = [] }
+    var byId: [String: Seen] = [:]
     for s in sorted {
         switch s.event {
-        case let .checkinShown(id): byId[id, default: []].append((s.t, s.role, "s"))
-        case let .checkinAnswered(id): byId[id, default: []].append((s.t, s.role, "a"))
-        case let .checkinDismissed(id): byId[id, default: []].append((s.t, s.role, "d"))
+        case let .checkinShown(id), let .notificationScheduled(id):
+            byId[id, default: Seen()].shown[s.role] = min(byId[id]?.shown[s.role] ?? s.t, s.t)
+        case let .checkinAnswered(id): byId[id, default: Seen()].answered.append(s.role)
+        case let .checkinDismissed(id), let .notificationCancelled(id): byId[id, default: Seen()].dismissed.append(s.role)
         default: break
         }
     }
     var complete = 0, latencies: [Double] = []
-    for (_, evs) in byId {
-        let shownOn = Set(evs.filter { $0.kind == "s" }.map { $0.role })
-        guard !shownOn.isEmpty else { continue }
+    for c in byId.values where !c.shown.isEmpty {
         x.checkinsShown += 1
-        let a = evs.filter { $0.kind == "a" }, d = evs.filter { $0.kind == "d" }
-        if shownOn.count == 2, a.count == 1, d.count == 1, a[0].role != d[0].role {
-            complete += 1; latencies.append(max(0, (d[0].t - a[0].t) / 1000))
+        if let shownC = c.shown[.computer], let shownP = c.shown[.phone], c.answered.count == 1,
+           c.dismissed.count == 1, c.answered[0] != c.dismissed[0] {
+            complete += 1; latencies.append(max(0, (shownP - shownC) / 1000))
         }
     }
     if x.checkinsShown > 0 {
@@ -149,6 +153,8 @@ func computeExtra(_ events: [Stamped], nearIv: [Interval], awayIv: [Interval], h
         switch s.event {
         case let .sensorPermission(seen): x.sensorPromptSeen = seen
         case let .pairing(method, success, _):
+            // The computer judges the attempt (code match); the phone logs only that its write went out.
+            if s.role == .phone { x.phoneWrites[method, default: 0] += 1; continue }
             var p = x.pairing[method] ?? PairingStats()
             p.attempts += 1; if success { p.successes += 1 }
             x.pairing[method] = p
@@ -157,7 +163,7 @@ func computeExtra(_ events: [Stamped], nearIv: [Interval], awayIv: [Interval], h
     }
     for method in x.pairing.keys {
         x.pairing[method]?.medianMs = median(sorted.compactMap {
-            if case let .pairing(m, true, d?) = $0.event, m == method { return d } else { return nil }
+            if $0.role == .computer, case let .pairing(m, true, d?) = $0.event, m == method { return d } else { return nil }
         })
     }
     return x

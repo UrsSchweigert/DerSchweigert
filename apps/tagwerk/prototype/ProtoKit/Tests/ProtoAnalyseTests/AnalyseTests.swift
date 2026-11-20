@@ -61,9 +61,11 @@ private func fixture(minutes: Int = 120, lost: Range<Int> = 0..<0, markers: Bool
         c(92, .computerIdle(seconds: 120)); c(95, .computerIdle(seconds: 300))
         c(40, .computerIdle(seconds: 0))
         if degraded { c(98, .computerIdle(seconds: 0)) }
-        // Check-ins: shown on both, answered on the phone after 5 s, dismissed on the computer 2 s or 30 s later.
+        // Check-ins: shown on the computer and scheduled on the phone `lag` s later (c1 in the background, so the
+        // phone logs no checkin_shown), answered on the phone after 5 s, dismissed on the computer after `lag` s more.
         for (id, m, lag) in [("c1", 95.0, 2.0), ("c2", 100.0, degraded ? 30.0 : 3.0)] {
-            p(m, .checkinShown(id: id)); c(m, .checkinShown(id: id))
+            c(m, .checkinShown(id: id)); phone.append(line(at(m) + Int64(lag * 1000), .phone, .notificationScheduled(id: id)))
+            if id == "c2" { phone.append(line(at(m) + Int64(lag * 1000) + 500, .phone, .checkinShown(id: id))) }
             phone.append(line(at(m) + 5_000, .phone, .checkinAnswered(id: id)))
             computer.append(line(at(m) + 5_000 + Int64(lag * 1000) + skew, .computer, .checkinDismissed(id: id)))
         }
@@ -71,7 +73,9 @@ private func fixture(minutes: Int = 120, lost: Range<Int> = 0..<0, markers: Bool
         p(0, .battery(level: 0.90, charging: false, lowPowerMode: false))
         p(60, .battery(level: degraded ? 0.60 : 0.85, charging: false, lowPowerMode: false))
         p(100, .battery(level: 1.0, charging: true, lowPowerMode: false))
-        p(1, .pairing(method: "number", success: true, durationMs: 4000)); p(2, .pairing(method: "number", success: false, durationMs: nil))
+        // The computer judges each attempt; the phone logs its write for both, even the one with the wrong code.
+        c(1, .pairing(method: "number", success: true, durationMs: 4000)); c(2, .pairing(method: "number", success: false, durationMs: nil))
+        p(1, .pairing(method: "number", success: true, durationMs: nil)); p(2, .pairing(method: "number", success: true, durationMs: nil))
     }
     return (phone.joined(separator: "\n"), computer.joined(separator: "\n"))
 }
@@ -177,7 +181,7 @@ final class AnalyseTests: XCTestCase {
         XCTAssertEqual(x.batteryDropPerHour!, 5, accuracy: 1e-9)
         XCTAssertEqual(x.sensorPromptSeen, true)
         XCTAssertEqual(x.pairing["number"]?.attempts, 2); XCTAssertEqual(x.pairing["number"]?.successes, 1)
-        XCTAssertEqual(x.pairing["number"]?.medianMs, 4000)
+        XCTAssertEqual(x.pairing["number"]?.medianMs, 4000); XCTAssertEqual(x.phoneWrites["number"], 2)
         let report = try analyse(phoneLog: f.phone, computerLog: f.computer, thresholdsJSON: thresholds)
         XCTAssertTrue(report.contains("| max_battery_drop_per_hour | 10.0 | 5.000 | met |"))
         XCTAssertTrue(report.contains("| phone_restart | 0.5"))
@@ -226,6 +230,31 @@ final class AnalyseTests: XCTestCase {
         XCTAssertEqual(starts["app_removed"], [at(76.5)]); XCTAssertEqual(starts["out_of_range"], [at(110)])
         // A first launch is the start of the measurement, and an away stretch without a disconnect is no outage.
         XCTAssertNil(reconnectStarts(try metricsEvents(fixture()), nearIv: [(0, 1), (2, 3)])["out_of_range"])
+    }
+
+    func testPairingAttemptBothDevicesLogCountsOnce() throws {
+        let t = Double(t0)
+        let ev = [Stamped(t: t, role: .phone, event: .pairing(method: "qr", success: true, durationMs: nil)),
+                  Stamped(t: t + 100, role: .computer, event: .pairing(method: "qr", success: false, durationMs: nil))]
+        let x = computeExtra(ev, nearIv: [], awayIv: [], hasNear: false)
+        XCTAssertEqual(x.pairing["qr"]?.attempts, 1); XCTAssertEqual(x.pairing["qr"]?.successes, 0)
+        XCTAssertEqual(x.phoneWrites["qr"], 1)
+    }
+
+    func testBackgroundCheckinWithoutPhoneShownIsComplete() throws {
+        let t = Double(t0)
+        let ev: [Stamped] = [.init(t: t, role: .computer, event: .checkinShown(id: "b")),
+                             .init(t: t + 4_000, role: .phone, event: .notificationScheduled(id: "b")),
+                             .init(t: t + 9_000, role: .phone, event: .checkinAnswered(id: "b")),
+                             .init(t: t + 9_500, role: .computer, event: .checkinDismissed(id: "b")),
+                             .init(t: t + 1_000, role: .computer, event: .checkinShown(id: "n")),
+                             .init(t: t + 2_000, role: .phone, event: .notificationScheduled(id: "n")),
+                             .init(t: t + 3_000, role: .phone, event: .checkinAnswered(id: "n")),
+                             .init(t: t + 3_500, role: .phone, event: .notificationCancelled(id: "n"))]
+        let x = computeExtra(ev, nearIv: [], awayIv: [], hasNear: false)
+        // "n" was answered and cancelled on the same device, so it is not a round trip.
+        XCTAssertEqual(x.checkinsShown, 2); XCTAssertEqual(x.checkinCompleteShare, 0.5)
+        XCTAssertEqual(x.checkinLatencyMaxS!, 4, accuracy: 1e-9)
     }
 
     func testReconnectThatNeverHappensIsInfinite() throws {
