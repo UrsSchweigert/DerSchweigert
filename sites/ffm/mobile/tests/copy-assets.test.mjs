@@ -317,6 +317,16 @@ test('the app bundle carries no phone frame', async () => {
   assert.doesNotMatch(index, /phone-frame/);
 });
 
+// Visitor statistics (Umami) belong to the website only: the apps must not phone home, and the
+// store privacy labels say they do not. On the web it has to stay after phone-frame.js's
+// document.write, so a desktop visit is counted once (inside the frame), not twice.
+test('the web shell loads Umami after the phone frame; the app bundle does not', async () => {
+  const raw = await readFile(join(staticDir, 'index.html'), 'utf8');
+  assert.match(raw, /<script defer src="https:\/\/cloud\.umami\.is\/script\.js"[^>]*data-domains="arithmoslayer\.de,www\.arithmoslayer\.de"/);
+  assert.ok(raw.indexOf('cloud.umami.is') > raw.indexOf('game/phone-frame.js'), 'Umami must come after the phone-frame script');
+  assert.doesNotMatch(stripAppOnlyDom(raw), /umami/i);
+});
+
 // The campaign switch's dragons (young: Campaign I, ancient: Campaign II) must ship offline.
 test('the app bundle carries every campaign dragon piece the page references', async () => {
   const { BUNDLE_FILES } = await import('../scripts/bundle-check.mjs');
