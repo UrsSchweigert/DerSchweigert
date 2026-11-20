@@ -347,7 +347,8 @@ module "site" {
 
   # Identical to prod: Turnstile needs challenges.cloudflare.com for scripts and
   # frames, and the wide-screen phone frame needs 'self' framing itself.
-  content_security_policy = "default-src 'self'; script-src 'self' https://challenges.cloudflare.com; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self'; frame-src 'self' https://challenges.cloudflare.com; object-src 'none'; base-uri 'self'; frame-ancestors 'self'"
+  # Same Umami Cloud origins as prod (script-src cloud.umami.is, connect-src gateway.umami.is).
+  content_security_policy = "default-src 'self'; script-src 'self' https://challenges.cloudflare.com https://cloud.umami.is; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self' https://gateway.umami.is; frame-src 'self' https://challenges.cloudflare.com; object-src 'none'; base-uri 'self'; frame-ancestors 'self'"
 
   tags = local.tags
 }

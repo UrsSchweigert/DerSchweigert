@@ -149,8 +149,8 @@ test('German uses comma decimals, English uses dot decimals', () => {
 
 test('exactly one script tag, external, and no inline handlers or javascript: URLs', () => {
   const scriptTags = html.match(/<script\b[^>]*>/gi) || [];
-  assert.equal(scriptTags.length, 1, 'the page must ship exactly one <script> tag');
-  assert.match(scriptTags[0], /\bsrc="\/promo\/promo\.js"/, 'the single script must load /promo/promo.js');
+  assert.equal(scriptTags.length, 2, 'the page must ship exactly two <script> tags: promo.js and Umami');
+  assert.match(scriptTags[0], /\bsrc="\/promo\/promo\.js"/, 'the first script must load /promo/promo.js');
   assert.match(scriptTags[0], /\btype="module"/, 'promo.js is an ES module and must load as one');
 
   assert.deepEqual(html.match(/<script(?![^>]*\bsrc=)[^>]*>/gi) || [], [], 'no inline <script> blocks allowed');
@@ -188,7 +188,7 @@ test('every asset reference is root-absolute, allow-listed or an anchor', () => 
   for (const match of css.matchAll(/url\(\s*['"]?([^'")]+)['"]?\s*\)/g)) urls.add(match[1]);
   for (const match of html.matchAll(/<link\b[^>]*\bhref="([^"]+)"/g)) urls.add(match[1]);
 
-  const allowedAbsolute = /^(?:https:\/\/arithmoslayer\.de\/|https:\/\/apps\.apple\.com\/|https:\/\/www\.facebook\.com\/profile\.php\?id=61596637234356$)/;
+  const allowedAbsolute = /^(?:https:\/\/arithmoslayer\.de\/|https:\/\/apps\.apple\.com\/|https:\/\/cloud\.umami\.is\/script\.js$|https:\/\/www\.facebook\.com\/profile\.php\?id=61596637234356$)/;
   const bad = [];
   for (const url of urls) {
     if (url.startsWith('#') || url.startsWith('mailto:')) continue;
@@ -197,6 +197,16 @@ test('every asset reference is root-absolute, allow-listed or an anchor', () => 
     bad.push(url);
   }
   assert.deepEqual(bad, [], `bare relative URLs break at / and /promo: ${bad.join(', ')}`);
+});
+
+test('Umami visitor statistics: one allowed external script, restricted to the live domains', () => {
+  const tag = html.match(/<script\b[^>]*cloud\.umami\.is[^>]*>/i)?.[0];
+  assert.ok(tag, 'the Umami script tag is missing');
+  assert.match(tag, /\bsrc="https:\/\/cloud\.umami\.is\/script\.js"/);
+  assert.match(tag, /\bdefer\b/);
+  assert.match(tag, /\bdata-website-id="[0-9a-f-]{36}"/);
+  assert.match(tag, /\bdata-domains="arithmoslayer\.de,www\.arithmoslayer\.de"/,
+    'without data-domains, localhost and the dev site would count as visitors');
 });
 
 test('the page loads its own CSS and JS from /promo/', () => {
