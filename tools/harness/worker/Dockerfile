@@ -58,9 +58,23 @@ RUN chmod 0755 /opt/harness/godot-test && ln -sf /opt/harness/godot-test /usr/lo
 COPY art-generate /usr/local/bin/art-generate
 RUN chmod 0755 /usr/local/bin/art-generate
 
+# Swift for Linux, so a worker can build and test a Swift package that uses no Apple framework. It is not Xcode:
+# an iOS or macOS app is still built only by the macOS workflows. The apt packages are what the toolchain links
+# against. This layer sits late in the file because it is large and the layers above it change more often.
+COPY install_swift.py /opt/harness/install_swift.py
+ENV PATH=/opt/swift/usr/bin:$PATH
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends binutils-gold gcc libc6-dev libcurl4-openssl-dev libedit-dev \
+        libgcc-12-dev libncurses-dev libpython3-dev libsqlite3-dev libstdc++-12-dev libxml2-dev pkg-config tzdata \
+        uuid-dev zlib1g-dev \
+    && rm -rf /var/lib/apt/lists/* \
+    && arch="${TARGETARCH:-$(dpkg --print-architecture)}" \
+    && python3 /opt/harness/install_swift.py "$arch" \
+    && swift --version
+
 # Trusted browser and engine checks. Workers cannot change them: they live in the image, not in the repository.
 COPY smoke/ /opt/harness/smoke/
-RUN chmod 0755 /opt/harness/smoke/godot_project.sh /opt/harness/smoke/ios_shell.sh
+RUN chmod 0755 /opt/harness/smoke/godot_project.sh /opt/harness/smoke/ios_shell.sh /opt/harness/smoke/swift_probe.sh
 
 RUN useradd --uid 10001 --create-home --shell /bin/sh worker
 USER worker
