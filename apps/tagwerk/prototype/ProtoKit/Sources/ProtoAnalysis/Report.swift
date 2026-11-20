@@ -26,6 +26,35 @@ public func analyse(phoneLog: String, computerLog: String, thresholdsJSON: Strin
             "Ordinary: overlaps no away, interruption or computer-sleep interval.", "",
             "## Minutes lost (ordinary gap time beyond the grace)", "", "| Grace (min) | Lost (min) |", "| --- | --- |"]
     for g in [2, 5, 10] { out.append("| \(g) | \(f(m.lostMinutes[g])) |") }
+    let x = m.extra
+    func share(_ v: Double?) -> String { v.map { String(format: "%.1f %%", 100 * $0) } ?? "not measured" }
+    out += ["", "## Orientation", "",
+            "Reads \(x.orientationReads); succeeded and agree with the nearest face marker: \(share(x.orientationShare))", "",
+            "## RSSI (dBm)", "", "| Distance marker | Pings | Mean |", "| --- | --- | --- |"]
+    for k in x.rssiByMarker.keys.sorted() { out.append("| \(k) | \(x.rssiByMarker[k]!.count) | \(f(x.rssiByMarker[k]!.mean, 1)) |") }
+    if x.rssiByMarker.isEmpty { out.append("| not measured | | |") }
+    out += ["", "At-desk against away: cut \(x.rssiCut.map { f($0, 1) } ?? "not measured") dBm, error rate \(share(x.rssiErrorRate))", "",
+            "## Reconnect after interruption (minutes to the next ping)", "",
+            "Each kind is recognised from logged events (bluetooth_state, computer_wake, launch, restore, disconnect, near).", "",
+            "| Kind | Longest |", "| --- | --- |"]
+    for k in MarkerLabel.reconnectKinds {
+        out.append("| \(k) | \(x.reconnectMinutes[k].map { $0.isFinite ? f($0) : "never" } ?? "not measured") |")
+    }
+    out += ["", "## Idle seconds", "", "Samples while away (after an `away` marker): \(x.idleSamples); agreeing: \(share(x.idleAgreeShare))", "",
+            "## Check-in", "", "Shown: \(x.checkinsShown); shown on both, answered on one, dismissed or cancelled on the other: \(share(x.checkinCompleteShare))",
+            "The phone counts as shown when it logged `notification_scheduled` or `checkin_shown` (the latter only in the foreground).",
+            "Longest latency from the computer showing it to the phone scheduling it, after the clock offset: \(x.checkinLatencyMaxS.map { f($0, 1) + " s" } ?? "not measured")", "",
+            "## Battery", "", "Drop per hour (percentage points, not charging): \(x.batteryDropPerHour.map { f($0, 1) } ?? "not measured")", "",
+            "## Sensor permission", "",
+            "Prompt recorded: \(x.sensorPromptSeen.map { $0 ? "seen" : "not seen" } ?? "not measured")", "",
+            "## Pairing", "", "| Method | Attempts | Succeeded | Median duration (ms) |", "| --- | --- | --- | --- |"]
+    for k in x.pairing.keys.sorted() {
+        let p = x.pairing[k]!
+        out.append("| \(k) | \(p.attempts) | \(p.successes) | \(p.medianMs.map { f($0, 0) } ?? "n/a") |")
+    }
+    if x.pairing.isEmpty { out.append("| not measured | | | |") }
+    out += ["", "Attempts and successes are the computer's (success = code match). Phone writes logged: "
+            + (x.phoneWrites.isEmpty ? "none" : x.phoneWrites.keys.sorted().map { "\($0) \(x.phoneWrites[$0]!)" }.joined(separator: ", "))]
     out += ["", "## Thresholds", "", "| Threshold | Limit | Measured | Verdict |", "| --- | --- | --- | --- |"]
     for r in results { out.append("| \(r.key) | \(r.limit) | \(f(r.value, 3)) | \(r.verdict.rawValue) |") }
     out += ["", "## Marker labels", ""] + MarkerLabel.all.map { "- `\($0)`" }

@@ -26,6 +26,7 @@ public struct Metrics: Equatable {
     /// Longest gap that overlaps no away, interruption or sleep interval; nil when no near/away marker exists.
     public var ordinaryLongestMin: Double?
     public var lostMinutes: [Int: Double] = [:]
+    var extra = ExtraMetrics()
 
     public static func == (a: Metrics, b: Metrics) -> Bool { a.values == b.values && a.shareByState.mapValues { [$0.received, $0.sent] } == b.shareByState.mapValues { [$0.received, $0.sent] } }
 
@@ -35,7 +36,7 @@ public struct Metrics: Equatable {
         v["ping_share_near_awake"] = nearAwakeShare
         v["ordinary_gap_minutes"] = ordinaryLongestMin
         for (g, m) in lostMinutes where ordinaryLongestMin != nil { v["lost_minutes_grace_\(g)"] = m }
-        return v
+        return v.merging(extra.values) { a, _ in a }
     }
 }
 
@@ -80,6 +81,8 @@ func compute(phone: [LogLine], computer: [LogLine]) throws -> Metrics {
     // Everything on the phone clock, in milliseconds.
     let shifted = computer.map { ($0.event, Double($0.wallMs) + offset) } + phone.map { ($0.event, Double($0.wallMs)) }
     var m = Metrics(clockOffsetMs: offset)
+    let stamped = computer.map { Stamped(t: Double($0.wallMs) + offset, role: .computer, event: $0.event) }
+        + phone.map { Stamped(t: Double($0.wallMs), role: .phone, event: $0.event) }
     var sends: [(seq: Int, t: Double)] = [], recv: [(seq: Int, t: Double, state: String)] = []
     var near: [(t: Double, open: Bool)] = [], asleep: [(t: Double, open: Bool)] = [], interrupted: [(t: Double, open: Bool)] = []
     for (event, t) in shifted {
@@ -98,8 +101,8 @@ func compute(phone: [LogLine], computer: [LogLine]) throws -> Metrics {
     recv.sort { $0.t < $1.t }; sends.sort { $0.t < $1.t }
     let dayEnd = max(recv.last?.t ?? 0, sends.last?.t ?? 0)
     let nearIv = intervals(near, dayEnd: dayEnd), sleepIv = intervals(asleep, dayEnd: dayEnd)
-    let excluded = sleepIv + intervals(interrupted, dayEnd: dayEnd)
-        + complement(nearIv, from: near.map { $0.t }.min() ?? 0, to: dayEnd)
+    let awayIv = complement(nearIv, from: near.map { $0.t }.min() ?? 0, to: dayEnd)
+    let excluded = sleepIv + intervals(interrupted, dayEnd: dayEnd) + awayIv
     let receivedSeqs = Set(recv.map { $0.seq })
     m.sent = sends.count; m.received = sends.filter { receivedSeqs.contains($0.seq) }.count
     // A lost ping has no app_state of its own: it takes the state of the latest received ping before it.
@@ -125,6 +128,7 @@ func compute(phone: [LogLine], computer: [LogLine]) throws -> Metrics {
             m.lostMinutes[grace] = ordinary.map { max(0, ($0.end - $0.start) / 60_000 - Double(grace)) }.reduce(0, +)
         }
     }
+    m.extra = computeExtra(stamped, nearIv: nearIv, awayIv: awayIv, hasNear: !near.isEmpty)
     return m
 }
 

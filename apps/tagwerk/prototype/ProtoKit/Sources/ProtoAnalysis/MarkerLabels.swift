@@ -10,10 +10,12 @@ public enum MarkerLabel {
     public static let interruptionKinds = ["interruption_call", "interruption_meeting", "interruption_break"]
     public static let start = "_start"
     public static let end = "_end"
-    public static let idle = "idle"
+    /// Link interruptions the reconnect table reports. None is a marker: each is recognised from logged events
+    /// (see `reconnectStarts` in ExtraMetrics.swift), so the owner taps nothing extra.
+    public static let reconnectKinds = ["out_of_range", "bluetooth_off", "computer_sleep", "phone_restart", "app_removed"]
 
     public static var all: [String] {
-        [near, away, distancePrefix + "<metres>m", faceUp, faceDown, idle]
+        [near, away, distancePrefix + "<metres>m", faceUp, faceDown]
             + interruptionKinds.flatMap { [$0 + start, $0 + end] }
     }
 }
