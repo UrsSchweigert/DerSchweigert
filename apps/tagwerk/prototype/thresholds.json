@@ -1,4 +1,11 @@
 {
   "min_ping_share_near_awake": 0.95,
-  "max_ordinary_gap_minutes": 5
+  "max_ordinary_gap_minutes": 5,
+  "min_orientation_read_share": 0.95,
+  "max_rssi_error_rate": 0.1,
+  "max_reconnect_minutes_max": 2,
+  "min_idle_agree_share": 0.95,
+  "min_checkin_complete_share": 0.95,
+  "max_checkin_latency_s_max": 10,
+  "max_battery_drop_per_hour": 10
 }

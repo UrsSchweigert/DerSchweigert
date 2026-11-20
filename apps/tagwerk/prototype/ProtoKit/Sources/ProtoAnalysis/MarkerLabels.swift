@@ -10,10 +10,13 @@ public enum MarkerLabel {
     public static let interruptionKinds = ["interruption_call", "interruption_meeting", "interruption_break"]
     public static let start = "_start"
     public static let end = "_end"
-    public static let idle = "idle"
+    /// Bracketed like the interruptions: the owner leaves the computer untouched between the two.
+    public static let idleStart = "idle_start", idleEnd = "idle_end"
+    /// Bracketed interruptions of the link; the wait from `<kind>_end` to the next ping is the reconnect time.
+    public static let reconnectKinds = ["out_of_range", "bluetooth_off", "computer_sleep", "phone_restart", "app_removed"]
 
     public static var all: [String] {
-        [near, away, distancePrefix + "<metres>m", faceUp, faceDown, idle]
-            + interruptionKinds.flatMap { [$0 + start, $0 + end] }
+        [near, away, distancePrefix + "<metres>m", faceUp, faceDown, idleStart, idleEnd]
+            + (interruptionKinds + reconnectKinds).flatMap { [$0 + start, $0 + end] }
     }
 }
