@@ -48,8 +48,16 @@ jobs:
       - run: xcodebuild -version
       - name: No downloaded dependencies
         run: sh scripts/check-no-third-party.sh .
+      # Every package step is guarded: the packages arrive phase by phase, and an unguarded step would turn
+      # test-tagwerk red on every pull request until the package exists.
       - name: Core tests
-        run: swift test --package-path Core
+        run: |
+          [ -d Core ] || { echo "apps/tagwerk/Core does not exist yet"; exit 0; }
+          swift test --package-path Core
+      - name: Prototype kit tests
+        run: |
+          [ -d prototype/ProtoKit ] || { echo "apps/tagwerk/prototype/ProtoKit does not exist yet"; exit 0; }
+          swift test --package-path prototype/ProtoKit
       - name: Build every Apple package scheme for iOS Simulator and macOS
         run: |
           set -euo pipefail
@@ -69,8 +77,20 @@ jobs:
           set -euo pipefail
           [ -d Apple ] || exit 0
           cd Apple
-          device=$(xcrun simctl list devices available -j | python3 -c 'import json,sys; d=json.load(sys.stdin)["devices"]; print(next(x["udid"] for k,v in d.items() if "iOS" in k for x in v if "iPhone" in x["name"]))')
-          xcodebuild -scheme "$(xcodebuild -list -json | python3 -c 'import json,sys; print(json.load(sys.stdin)["workspace"]["name"])')" \
+          device=$(xcrun simctl list devices available -j | python3 -c '
+          import json, sys
+          d = json.load(sys.stdin)["devices"]
+          ids = [x["udid"] for k, v in d.items() if "iOS" in k for x in v if "iPhone" in x["name"]]
+          print(ids[0] if ids else "")')
+          [ -n "$device" ] || { echo "::error::no available iPhone simulator on this runner"; exit 1; }
+          # A package with several products gets a <Name>-Package scheme that runs every test target;
+          # a package with one product only has the scheme named after the package.
+          scheme=$(xcodebuild -list -json | python3 -c '
+          import json, sys
+          w = json.load(sys.stdin)["workspace"]
+          print(w["name"] + "-Package" if w["name"] + "-Package" in w["schemes"] else w["name"])')
+          echo "testing scheme $scheme"
+          xcodebuild -scheme "$scheme" \
             -destination "id=$device" -derivedDataPath "$RUNNER_TEMP/tagwerk-derived" \
             CODE_SIGNING_ALLOWED=NO test
       - name: Build the Xcode project once it exists
