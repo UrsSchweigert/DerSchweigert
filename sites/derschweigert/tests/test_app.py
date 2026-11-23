@@ -100,6 +100,8 @@ def test_homepage_projects_focus_and_structure():
     assert "Buchstabenzeit" in html
     assert "Lernapp für Lesefähigkeit" in html
     assert 'href="https://apps.apple.com/app/buchstabenzeit/id6831006870"' in html
+    assert 'href="https://play.google.com/store/apps/details?id=de.derschweigert.buchstabenzeit"' in html
+    assert "Geschlossener Test" not in html
     assert "Arithmo Slayer" in html
     assert "Arithmoslayer" not in html
     assert 'href="https://arithmoslayer.de"' in html
