@@ -3,6 +3,7 @@
 import { countMatchingWords, getSoundsForLanguage } from './sounds.mjs';
 import { bestNextUnits } from './coverage.mjs';
 import { readableSentenceCards } from './sentences/cards.mjs';
+import { createComposer } from './sentences/compose.mjs';
 
 /**
  * @param {{words: string[]|null, sentences: Array<{id: string, text: string}>|null}} data
@@ -19,6 +20,10 @@ export function computeCounts({ words, sentences }, lang, selection) {
     wordCount = countMatchingWords(words, selection, Infinity, sounds.specials);
     best = bestNextUnits(words, selection, sounds, lang);
   }
-  const sentenceCount = sentences ? readableSentenceCards(sentences, selection, lang).length : null;
+  // The composer draws from the same vocabulary the pool was generated from, so
+  // its capacity overlaps the pool; the larger of the two is the honest floor.
+  const sentenceCount = sentences
+    ? Math.max(readableSentenceCards(sentences, selection, lang).length, createComposer(selection, lang).capacity)
+    : null;
   return { wordCount, best, sentenceCount };
 }

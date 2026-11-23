@@ -194,8 +194,14 @@ test('the Karten tab offers a sentence mode with a live count', () => {
 
 test('the setup screen offers and practises the filtered sentence pool', () => {
   assert.match(setupHtml, /from '\.\/sentences\/cards\.mjs'/);
-  assert.match(setupHtml, /readableSentenceCards\(pool, currentSelection\(\), lang\)/);
+  assert.match(setupHtml, /readableSentenceCards\(pool, selection, lang\)/);
+  assert.match(setupHtml, /from '\.\/sentences\/compose\.mjs'/);
+  assert.match(setupHtml, /createComposer\(selection, lang\)\.capacity/);
+  assert.match(setupHtml, /createComposer\(selection, currentLanguage\)\.sample\(requestedTotal\)/);
+  assert.match(setupHtml, /\{ count: requestedTotal, composed \}/);
+  // Composed sentences are not in the pool, so flops recognise them by their space.
+  assert.match(setupHtml, /Object\.keys\(stats\)\.filter\(text => \/\\s\/\.test\(text\.trim\(\)\)\)/);
   assert.match(setupHtml, /\.\/sentences\/\$\{lang\}\.json/);
   assert.match(setupHtml, /window\.__scoring\.buildSentenceOnlyDeck\(/);
-  assert.match(setupHtml, /applySentenceCount\(cards\.length\)/);
+  assert.match(setupHtml, /applySentenceCount\(Math\.max\(cards\.length,/);
 });

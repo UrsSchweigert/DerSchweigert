@@ -601,7 +601,8 @@ test("the Karten tab builds the sentence deck through the scoring module", () =>
 test("the Flops mode builds a kind-aware deck from the active sentence pool", () => {
   assert.match(setupHtml, /buildFlopDeck.*?buildSentenceOnlyDeck.*? \} from '\.\/scoring\.mjs'/);
   assert.match(setupHtml, /sentenceTexts\[lang\] = new Set\(/);
-  assert.match(setupHtml, /buildFlopDeck\(stats, allowedSounds, sentenceTexts\[currentLanguage\] \|\| \[\]\)/);
+  assert.match(setupHtml, /\.\.\.\(sentenceTexts\[currentLanguage\] \|\| \[\]\)/);
+  assert.match(setupHtml, /buildFlopDeck\(stats, allowedSounds, sentenceCards\)/);
   assert.match(setupHtml, /queue = shuffle\(flopDeck\);/);
 });
 
@@ -661,7 +662,7 @@ test("the sentence mode keeps no manual selection state behind", () => {
   assert.doesNotMatch(setupHtml, /sentenceSelection/);
   assert.doesNotMatch(setupHtml, /clearSentenceSelection/);
   assert.doesNotMatch(setupHtml, /id="sentences-clear"/);
-  assert.match(setupHtml, /applySentenceCount\(cards\.length\)/);
+  assert.match(setupHtml, /applySentenceCount\(Math\.max\(cards\.length,/);
 });
 
 test("regression: the patterns mode stays the default", () => {

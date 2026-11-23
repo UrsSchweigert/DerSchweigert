@@ -20,32 +20,14 @@ import { readFileSync, writeFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { resolve } from "node:path";
 import { stageOf, unitsOf, MAX_WORDS } from "./validate_sentences.mjs";
-import { VOCAB } from "./sentence_vocab.mjs";
+import { VOCAB } from "../static/sentences/vocab.mjs";
+import { complementsFor, verbFor, assemble } from "../static/sentences/compose.mjs";
 
 // ---------------------------------------------------------------------------
-// Curated vocabulary lives in sentence_vocab.mjs. Subjects carry ability groups
+// Curated vocabulary lives in static/sentences/vocab.mjs (shipped, so the app can compose sentences at runtime too). Subjects carry ability groups
 // and each verb lists complements per group, so a candidate only combines a
 // subject with a verb and complement that make sense together.
 // ---------------------------------------------------------------------------
-
-/** Capitalise the first letter of a string. */
-function capitalize(text) {
-  return text.charAt(0).toUpperCase() + text.slice(1);
-}
-
-/** Complements a verb allows for one subject: the first matching group wins. */
-function complementsFor(verb, subject) {
-  const group = Object.keys(verb.c).find((key) => key === "any" || subject.g.includes(key));
-  if (!group) return [];
-  return verb.c[group].flatMap((item) => (item === "$diet" ? subject.diet : item === "$drink" ? subject.drink : [item]));
-}
-
-/** The conjugated verb for a subject, or "" when the subject cannot use it. */
-function verbFor(verb, subject) {
-  if (verb.v === "$sound") return subject.sound;
-  if (typeof verb.v === "string") return verb.v;
-  return subject.g.includes("H") ? verb.v.H : verb.v.default;
-}
 
 /**
  * Expand the vocabulary into the ordered candidate stream. Plain sentences come
@@ -69,14 +51,8 @@ export function candidates(lang) {
         for (const list of lists) {
           if (index >= list.length) continue;
           const { subject, form, complement } = list[index];
-          const parts = [subject.t];
-          if (adverb && adverb.pos === "pre") parts.push(adverb.w);
-          parts.push(form);
-          if (adverb && adverb.pos === "verb") parts.push(adverb.w);
-          if (complement) parts.push(complement);
-          if (adverb && adverb.pos === "end") parts.push(adverb.w);
-          const words = parts.join(" ");
-          if (words.split(" ").length <= MAX_WORDS) out.push(capitalize(words) + ".");
+          const text = assemble(subject.t, form, adverb, complement);
+          if (text.slice(0, -1).split(" ").length <= MAX_WORDS) out.push(text);
         }
       }
     }
