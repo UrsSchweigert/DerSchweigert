@@ -207,3 +207,14 @@ test('the web profile that holds the switch scrolls instead of cutting it off', 
   assert.match(css, /#account-modal \.overlay-card \{ overflow-y: auto;/);
   assert.match(css, /#account-modal \.overlay-card > \* \{ flex-shrink: 0; \}/);
 });
+
+test('the title names the Genius difficulties and drops Shapes in Campaign II', () => {
+  for (const level of ['easy', 'medium', 'hard']) {
+    const key = `difficulty.${level}.label`;
+    assert.match(i18n, new RegExp(`'${key}Genius': \\{ en: 'Genius ${level[0].toUpperCase()}${level.slice(1)}'`));
+  }
+  assert.match(main, /function renderTitleDifficulties\(\)/);
+  assert.match(main, /if \(level === 'shapes'\) \{ btn\.hidden = inGenius; continue; \}/);
+  assert.match(main, /\n  renderTitleDifficulties\(\);\n/, 'runs from renderCampaignSwitch, so every campaign change updates the title');
+  assert.match(css, /\.splash-diff-btn\[hidden\]\s*\{\s*display:\s*none/, 'hidden must beat display:flex');
+});

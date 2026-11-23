@@ -2233,6 +2233,8 @@ button { overflow-wrap: break-word; word-break: normal; hyphens: none; }
   font-family: var(--font-prose);
 }
 .diff-label { font-size: var(--text-option); }
+/* .splash-diff-btn sets display:flex, which would beat the hidden attribute (Shapes is hidden in Genius). */
+.splash-diff-btn[hidden] { display: none; }
 .diff-detail { display: block; font-size: var(--text-body); color: var(--ivory-muted); }
 /* Web only: the two store listings are announced before they are live, so the
  * row is a quiet badge pair, not a call to action. The app build omits it. */

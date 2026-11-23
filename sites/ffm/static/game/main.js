@@ -2277,8 +2277,24 @@ async function renderCampaignSwitch() {
   // is in the player dialog (app) or the profile (web).
   const emblem = document.getElementById('campaign-emblem');
   if (emblem) emblem.hidden = wrap.hidden || selectedCampaign !== 2;
+  renderTitleDifficulties();
   // The Levels page follows the campaign too, not only the title line.
   refreshLevelGrid();
+}
+// In Campaign II the title offers Genius Easy / Medium / Hard and no Shapes button: testers
+// could not tell which button started the Genius campaign. Swapping the i18n key (not just the
+// text) keeps the labels right when the language changes.
+function renderTitleDifficulties() {
+  const inGenius = selectedCampaign === 2;
+  for (const btn of document.querySelectorAll('#difficulty-select [data-difficulty]')) {
+    const level = btn.dataset.difficulty;
+    if (level === 'shapes') { btn.hidden = inGenius; continue; }
+    const label = btn.querySelector('.diff-label');
+    if (!label) continue;
+    const key = `difficulty.${level}.label${inGenius ? 'Genius' : ''}`;
+    label.dataset.i18n = key;
+    label.textContent = t(key);
+  }
 }
 document.getElementById('genius-campaign-btn')?.addEventListener('click', async () => {
   if (levelStarting || pendingSkillIntro) return;
