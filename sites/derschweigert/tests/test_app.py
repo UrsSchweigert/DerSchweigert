@@ -81,6 +81,8 @@ def test_ovara_page_has_support_and_terms():
     assert "The Man the Tide Brought In" in response.text
     assert 'id="support"' in response.text
     assert 'id="terms"' in response.text
+    assert "https://books.apple.com/us/book/id6838287964" in response.text
+    assert "1 December 2026" in response.text
 
 
 def test_homepage_projects_focus_and_structure():

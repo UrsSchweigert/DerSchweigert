@@ -15,6 +15,9 @@
     .ov-intro h1 { margin: 6px 0 8px; font-family: var(--font-display); font-size: clamp(1.9rem, 4vw, 2.9rem); line-height: 1.05; }
     .ov-intro p { margin: 0 0 16px; color: var(--ivory-dim); max-width: 60ch; }
     .ov-soon { opacity: 0.75; cursor: default; }
+    .ov-novel { display: grid; grid-template-columns: 200px minmax(0, 1fr); gap: 28px; align-items: center; }
+    .ov-novel img { display: block; width: 100%; height: auto; border-radius: var(--radius-sm); box-shadow: var(--shadow); }
+    .ov-novel p { color: var(--ivory-dim); max-width: 60ch; }
     .ov-text { max-width: 68ch; }
     .ov-text p { color: var(--ivory-dim); }
     .ov-shots { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
@@ -27,7 +30,7 @@
     .ov-terms summary { cursor: pointer; font-family: var(--font-mono); font-size: 0.72rem; letter-spacing: 0.16em; text-transform: uppercase; }
     .ov-terms h3 { font-size: 1rem; margin: 18px 0 6px; color: var(--ivory-dim); }
     .ov-terms p { margin: 0 0 10px; }
-    @media (max-width: 640px) { .ov-intro { grid-template-columns: 1fr; } .ov-shots { grid-template-columns: 1fr; } }
+    @media (max-width: 640px) { .ov-novel { grid-template-columns: 1fr; max-width: 260px; } .ov-intro { grid-template-columns: 1fr; } .ov-shots { grid-template-columns: 1fr; } }
   </style>
 </head>
 <body>
@@ -52,6 +55,7 @@
           <h1>The Man the Tide Brought In</h1>
           <p>He wakes on the seabed with no name and no memory. A story of two peoples who have forgotten how to speak to each other, told in illustrated scenes.</p>
           <span class="btn btn-primary ov-soon" aria-disabled="true">Coming to the App Store</span>
+          <a class="btn btn-secondary" href="#novel">The novel &middot; 1 December 2026</a>
         </div>
       </div>
 
@@ -60,6 +64,17 @@
         <p>He wakes at the bottom of a golden kelp forest, breathing water, with the feeling that he has done something terrible. A mariner girl named Sefa finds him and calls him Wrack, the name her people give to whatever the tide brings in.</p>
         <p>Ovara is a vast ocean world. The mariners live in ancient cities under the sea, and those cities are failing. The agravars live on the islands above, ruled by corporations that pour their waste into the water. Into this world comes a stranger who must learn who he was before the sea decides who he will be.</p>
         <p>The game follows the novel <em>The Man the Tide Brought In</em> and uses the author&rsquo;s own words.</p>
+      </section>
+
+      <section class="section" id="novel">
+        <div class="section-head"><span class="eyebrow">The book</span><h2>Read the novel</h2></div>
+        <div class="ov-novel">
+          <img src="/static/projects/ovara/novel-cover.webp" alt="Cover of the novel The Man the Tide Brought In: a Dragon of bone and glowing water above a dark island pouring sludge into the sea" width="800" height="1200" loading="lazy" decoding="async" />
+          <div>
+            <p>The visual novel follows the novel of the same name, <em>The Man the Tide Brought In</em>. The full book comes out on Apple Books on <strong>1 December 2026</strong>, with a free sample to read first.</p>
+            <a class="btn btn-primary" href="https://books.apple.com/us/book/id6838287964" target="_blank" rel="noopener noreferrer">View on Apple Books</a>
+          </div>
+        </div>
       </section>
 
       <section class="section ov-text">
