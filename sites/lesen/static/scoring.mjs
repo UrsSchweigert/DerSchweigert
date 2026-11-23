@@ -309,25 +309,48 @@ function shuffleWith(items, random) {
  * @param {Array<string|{text?: string}>} pool sentence pool of the language
  * @param {{consonants?: Iterable<string>, vowels?: Iterable<string>, specials?: Iterable<string>}} selection
  * @param {string} [lang] language code ('de' or 'en')
- * @param {{count?: number, seed?: number, random?: () => number}} [options]
- *   `count` defaults to every readable sentence; `seed` pins the shuffle
+ * @param {{count?: number, seed?: number, random?: () => number, composed?: string[]}} [options]
+ *   `count` defaults to every readable sentence; `seed` pins the shuffle;
+ *   `composed` are extra sentences from the runtime composer, alternated with
+ *   the pool sentences so a narrow selection is not stuck with the pool's few
+ *   readable ones. They are re-checked against the selection here.
  * @returns {Array<{text: string, kind: "sentence", misses: number}>} the deck
  */
-export function buildSentenceOnlyDeck(pool, selection, lang = "de", { count, seed, random } = {}) {
+export function buildSentenceOnlyDeck(pool, selection, lang = "de", { count, seed, random, composed } = {}) {
   const limit = deckLimit(count);
   if (limit === 0) return [];
+  const rng = deckRandom(random, seed);
 
-  const cards = [];
-  const seen = new Set();
-  for (const entry of readableSentenceCards(pool, selection, lang)) {
-    const text = cardTextOf(entry);
-    if (!text || seen.has(text)) continue;
-    seen.add(text);
-    cards.push({ text, kind: "sentence", misses: 0 });
+  const toCards = (texts) => {
+    const seen = new Set();
+    const cards = [];
+    for (const text of texts) {
+      if (!text || seen.has(text)) continue;
+      seen.add(text);
+      cards.push({ text, kind: "sentence", misses: 0 });
+    }
+    return cards;
+  };
+
+  const fromPool = shuffleWith(toCards(readableSentenceCards(pool, selection, lang).map(cardTextOf)), rng);
+  if (!Array.isArray(composed) || composed.length === 0) {
+    return limit === Infinity ? fromPool : fromPool.slice(0, limit);
   }
 
-  const deck = shuffleWith(cards, deckRandom(random, seed));
-  return limit === Infinity ? deck : deck.slice(0, limit);
+  const extra = shuffleWith(
+    toCards(composed.filter((text) => readableSentenceCards([text], selection, lang).length === 1)),
+    rng,
+  );
+  const deck = [];
+  const taken = new Set();
+  for (let index = 0; deck.length < limit && (index < fromPool.length || index < extra.length); index++) {
+    for (const card of [extra[index], fromPool[index]]) {
+      if (!card || taken.has(card.text) || deck.length >= limit) continue;
+      taken.add(card.text);
+      deck.push(card);
+    }
+  }
+  return deck;
 }
 
 /**

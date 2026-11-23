@@ -1792,6 +1792,7 @@
         import { CONSONANTS, VOWELS, SPECIALS, getSoundsForLanguage, buildCombinations, buildPatternDeck, countMatchingWords, isWordsModeEligible, tokenizeWord } from './sounds.mjs';
         import { recordAttempt, selectFlopDeck, flopCandidateCards, buildFlopDeck, buildSentenceOnlyDeck, isSpeakableCard } from './scoring.mjs';
         import { readableSentenceCards } from './sentences/cards.mjs';
+        import { createComposer } from './sentences/compose.mjs';
         import { t } from './i18n.mjs';
         
         const platform = createPlatformAdapter();
@@ -1801,7 +1802,7 @@
         
         window.__sounds = { CONSONANTS, VOWELS, SPECIALS, getSoundsForLanguage, buildCombinations, buildPatternDeck, countMatchingWords, isWordsModeEligible, tokenizeWord };
         window.__scoring = { recordAttempt, selectFlopDeck, flopCandidateCards, buildFlopDeck, buildSentenceOnlyDeck, isSpeakableCard };
-        window.__sentences = { readableSentenceCards };
+        window.__sentences = { readableSentenceCards, createComposer };
         window.__storage = platform.progress;
         window.__i18n = { t };
     </script>
@@ -2204,8 +2205,9 @@
             }
             if (lang !== currentLanguage) return;
 
-            const cards = window.__sentences.readableSentenceCards(pool, currentSelection(), lang);
-            applySentenceCount(cards.length);
+            const selection = currentSelection();
+            const cards = window.__sentences.readableSentenceCards(pool, selection, lang);
+            applySentenceCount(Math.max(cards.length, window.__sentences.createComposer(selection, lang).capacity));
         }
 
         async function updateWordMatchCount() {
@@ -2284,7 +2286,14 @@
         function currentFlopDeck() {
             const { buildFlopDeck } = window.__scoring;
             const allowedSounds = new Set([...consonants, ...vowels, ...specials]);
-            return buildFlopDeck(stats, allowedSounds, sentenceTexts[currentLanguage] || []);
+            // Composed sentences are not in the pool, yet their attempts are
+            // recorded under their text. Word cards are single tokens, so any
+            // recorded text with a space is a sentence card too.
+            const sentenceCards = [
+                ...(sentenceTexts[currentLanguage] || []),
+                ...Object.keys(stats).filter(text => /\s/.test(text.trim())),
+            ];
+            return buildFlopDeck(stats, allowedSounds, sentenceCards);
         }
 
         function updateFlopModeStatus() {
@@ -2566,7 +2575,7 @@
             }
 
             // A sentence deck draws random readable sentences from the
-            // committed pool, limited by the card-count input.
+            // committed pool and the runtime composer, limited by the card-count input.
             if (mode === 'SENTENCES') {
                 if (!countInput.reportValidity()) return;
                 const requestedTotal = Number(countInput.value);
@@ -2574,11 +2583,15 @@
                 setStartLoading(true);
                 try {
                     const pool = await loadSentencePool(currentLanguage);
+                    const selection = currentSelection();
+                    // Composed sentences are drawn for this selection only, so a
+                    // narrow letter set is not limited to the pool's few readable ones.
+                    const composed = window.__sentences.createComposer(selection, currentLanguage).sample(requestedTotal);
                     const deck = window.__scoring.buildSentenceOnlyDeck(
                         pool,
-                        currentSelection(),
+                        selection,
                         currentLanguage,
-                        { count: requestedTotal },
+                        { count: requestedTotal, composed },
                     );
                     if (deck.length === 0) {
                         byId('setup-error').textContent = tr('setup.error.no_sentences');

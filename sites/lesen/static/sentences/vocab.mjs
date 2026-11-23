@@ -17,10 +17,20 @@ const DE = (() => {
   const home = ["im Haus", "im Zimmer", "am Tisch", "auf dem Sofa", "im Bett"];
   const sub = (t, g, o = {}) => ({ t, g, diet: [], drink: [], sound: "", ...o });
   const person = (t) => sub(t, ["H", "Sw", "Hop"]);
+  // Children also take "mit Mama"-style complements, which would read oddly
+  // for the adults they name; a verb lists them under the "K" group.
+  const kid = (t) => sub(t, ["K", "H", "Sw", "Hop"]);
   const water = ["Wasser"];
   const subjects = [
-    ...["Lisa", "Mama", "Papa", "Tim", "Anna", "Emma", "Ben", "Mia", "Oma", "Opa", "Max", "Tom", "Lea",
-      "Nina", "Sara", "Leo", "Finn", "Ida", "Paul", "Lena", "Jan", "Hanna", "das Kind", "der Mann", "die Frau"].map(person),
+    ...["Mama", "Papa", "Oma", "Opa", "der Mann", "die Frau"].map(person),
+    ...["Lisa", "Tim", "Anna", "Emma", "Ben", "Mia", "Max", "Tom", "Lea", "Nina", "Sara", "Leo", "Finn", "Ida", "Paul", "Lena",
+      "Jan", "Hanna", "das Kind"].map(kid),
+    // Articleless subjects: short names and titles that a child with few
+    // letters can read, including digraph names (ei, au, ie, eu, ai).
+    ...["Mona", "Rosa", "Nora", "Lara", "Tina", "Greta", "Timo", "Leon", "Anton", "Arne", "Sina", "Simone", "Irma", "Marta",
+      "Mareike", "Eike", "Reiner", "Kai", "Elias", "Marie", "Mirko", "Gerrit", "Luis", "Laura", "Klaus", "Rainer", "Heike",
+      "Antonia", "Nele", "Nils", "Ole", "Rolf", "Sören", "Teresa", "Uli", "Ute", "Gerda", "Maike", "Meike", "Reinhard"].map(kid),
+    ...["Tante Rosa", "Tante Mona", "Tante Lena", "Onkel Tom", "Onkel Leo", "Onkel Anton", "Opa Karl", "Oma Rosa", "Oma Greta"].map(person),
     sub("der Hund", ["Pl", "A", "Sw"], { diet: ["Fleisch", "Wurst", "Brot"], drink: water, sound: "bellt" }),
     sub("die Katze", ["Pl", "A"], { diet: ["Fisch", "Fleisch"], drink: ["Wasser", "Milch"], sound: "miaut" }),
     sub("das Pferd", ["A", "Fm"], { diet: ["Gras", "Heu", "Hafer", "Möhren", "einen Apfel"], drink: water, sound: "wiehert" }),
@@ -89,9 +99,35 @@ const DE = (() => {
     { v: "fliegt", c: { Fly: ["über die Wiese", "über den See", "über das Feld", "über den Wald", "über das Haus", "über den Berg", "im Garten", "im Park", "in der Sonne", "hoch", "weit", ""] } },
     { v: "kriecht", c: { S: ["im Garten", "auf der Wiese", "im Wald", "im Regen", "auf dem Weg", "langsam", ""] } },
     { v: "lebt", c: { W: ["im See", "im Teich", "im Fluss", "im Meer"], F: ["am Teich", "im Teich", "am See"], S: ["im Garten", "im Wald"] } },
+    // Verbs that read with few letters. Each lists articleless foods and
+    // places first so narrow selections still get varied sentences.
+    { v: "mag", advOnly: ["heute", "oft", "immer", "manchmal"], c: { H: ["Eis", "Reis", "Salat", "Kakao", "Tee", "Mais", "Nudeln", "Tomaten", "Nüsse", "Linsen", "Suppe", "Kuchen", "Käse", "Milch", "Kekse", "Eier", "Gurken", "Karotten", "Kirschen", "Rosen", "Musik", "Tiere", "Kartoffeln", "Erdbeeren", "Bananen", "Orangen", "Birnen", "Gemüse", "Obst", "Limonade", "Salami", "Sahne", "Marmelade", "Mangos", "Melonen"], A: ["$diet"], B: ["$diet"] } },
+    { v: "isst", c: { H: ["Eis", "Reis", "Salat", "Mais", "Nudeln", "Tomaten", "Nüsse", "Linsen", "Suppe", "Karotten", "Gurken", "Kirschen", "Erdbeeren", "Mangos", "Melone", "Salami", "Marmelade", "Sahne", "Torte", "Kuchen", "Käse", "Eier"] } },
+    { v: "teilt", c: { H: ["Eis", "Reis", "Salat", "Kakao", "Kekse", "Nüsse", "Tomaten", "Kirschen", "Erdbeeren", "Kuchen", "Brot", "Torte", "Marmelade", "Mangos"], K: ["Eis", "Salat", "Kekse", "Nüsse", "Tomaten", "Kirschen", "Kuchen", "Torte", "mit Mama", "mit Oma", "mit Opa", "mit Tim", "mit Mia", "mit Leo", "mit Lea"] } },
+    { v: "sagt", c: { H: ["Guten Tag", "Guten Morgen", "Gute Nacht", "Hallo", "Danke", "Bitte", "Tschüss", "nein", "leise Hallo", "laut Hallo"] } },
+    { v: "reist", c: { H: ["im Zug", "im Auto", "allein"], K: ["im Zug", "im Auto", "allein", "mit Mama", "mit Oma", "mit Opa"] } },
+    { v: "ist", advOnly: ["heute", "jetzt", "immer", "manchmal", "oft", "morgen"], c: { H: ["im Garten", "im Haus", "im Zimmer", "im Park", "im Wald", "in Rom", "in Kairo", "in Kiel", "am Meer", "am See", "zu Hause", "in der Schule", "laut", "leise", "müde", "klein", "groß", "nett", "lieb", "mutig", "fleißig", "freundlich", "gesund", "artig", "stark", "traurig", "munter"], A: ["klein", "groß", "müde", "stark", "lieb", "im Garten", "im Wald", "im Stall", "munter"], B: ["klein", "munter", "im Garten", "im Wald"] } },
+    { v: "trägt", c: { H: ["einen Rock", "einen Mantel", "eine Mütze", "einen Hut", "eine Hose", "eine Jacke", "Socken", "Schuhe", "einen Korb", "eine Tasche", "eine Kiste", "ein Kleid", "einen Ring", "eine Brille", "einen Ranzen", "einen Rucksack", "einen Eimer", "eine Tonne", "einen Mantel"] } },
+    { v: "baut", c: { H: ["ein Haus", "einen Turm", "ein Auto", "ein Boot", "eine Brücke", "eine Rakete", "eine Burg", "eine Mauer", "einen Schneemann", "einen Tunnel", "eine Straße", "ein Regal", "einen Tisch", "einen Stern", "ein Tor"] } },
+    { v: "zeichnet", c: { H: ["ein Haus", "einen Baum", "eine Rose", "ein Auto", "einen Stern", "eine Katze", "ein Tier", "ein Bild", "einen Kreis", "eine Sonne", "einen Mond", "einen Tiger", "einen Esel", "eine Eule", "einen Igel", "ein Lama", "ein Kamel", "eine Ente", "eine Gans"] } },
+    { v: "malt", c: { H: ["einen Tiger", "einen Esel", "eine Eule", "einen Igel", "ein Lama", "ein Kamel", "eine Gans", "eine Ente", "einen Mantel", "eine Rose", "eine Tomate", "einen Stern", "ein Reh", "eine Raupe", "einen Roboter", "einen Kreis", "ein Eis", "eine Torte", "eine Tonne", "eine Mauer"] } },
+    { v: "sammelt", c: { H: ["Steine", "Kastanien", "Eicheln", "Nüsse", "Muscheln", "Blätter", "Beeren", "Äpfel", "Birnen", "Eier", "Stifte", "Karten", "Münzen", "Marken", "Rosen", "Sterne", "Tannenzapfen", "Reis", "Tomaten", "Kirschen", "Erdbeeren"] } },
+    { v: "streichelt", c: { H: ["die Katze", "den Hund", "ein Pferd", "ein Lamm", "einen Hasen", "eine Ziege", "einen Esel", "ein Reh", "eine Ente", "einen Igel", "ein Kamel", "ein Lama"] } },
+    { v: "füttert", c: { H: ["die Katze", "den Hund", "die Enten", "die Tauben", "die Hühner", "ein Lamm", "einen Esel", "die Kühe", "das Pferd", "die Gänse", "einen Igel", "ein Reh"] } },
+    { v: "wandert", c: { H: ["im Wald", "am See", "am Fluss", "auf den Berg", "im Park", "im Regen", "im Schnee", "allein", "am Meer"], K: ["im Wald", "am See", "am Fluss", "im Park", "im Regen", "im Schnee", "allein", "am Meer", "mit Mama", "mit Oma", "mit Opa", "mit Tim", "mit Mia", "mit Leo", "mit Lea"] } },
+    { v: "reitet", c: { H: ["im Wald", "am See", "im Park", "auf dem Feld", "auf dem Pferd", "auf einem Esel", "auf einem Kamel", "allein", "am Meer"] } },
+    { v: "kommt", c: { H: ["nach Hause", "zur Schule", "zum Markt", "aus dem Haus", "aus Rom", "aus Kairo", "aus Kiel", "allein", "leise", "laut", "gleich", "später", "im Auto", "im Zug", "mit dem Auto", "mit dem Zug"], K: ["nach Hause", "zur Schule", "aus dem Haus", "aus Rom", "aus Kairo", "aus Kiel", "mit Mama", "mit Oma", "mit Opa", "allein", "leise", "laut", "gleich", "im Auto", "im Zug"] } },
+    { v: "wohnt", c: { H: ["im Haus", "im Dorf", "in der Stadt", "in Rom", "in Kairo", "in Kiel", "in Berlin", "in Paris", "in Oslo", "in Lima", "am See", "am Meer", "am Fluss", "im Wald", "im Norden", "im Süden", "im Osten", "im Westen", "in Italien", "in Kenia", "in Mali", "in Kuba", "in Toronto", "in Tokio"] } },
+    { v: "singt", c: { K: ["mit Mama", "mit Oma", "mit Opa", "mit Tim", "mit Mia", "mit Leo", "mit Lea", "mit Nina", "allein", "ein Lied", "leise", "laut", "im Auto", "im Zug", "im Regen", "im Kino"], H: ["allein", "ein Lied", "leise", "laut", "im Auto", "im Regen", "im Chor"] } },
+    { v: "lernt", c: { K: ["mit Mama", "mit Oma", "mit Opa", "mit Tim", "mit Mia", "mit Leo", "mit Lea", "mit Nina", "allein", "Rollschuh", "rechnen", "lesen", "malen", "singen", "reiten", "tanzen", "kochen", "turnen", "segeln", "rudern", "klettern"], H: ["allein", "lesen", "malen", "singen", "reiten", "kochen", "segeln", "rudern", "klettern", "tanzen", "turnen"] } },
+    { v: "malt", c: { K: ["mit Mama", "mit Oma", "mit Opa", "mit Tim", "mit Mia", "mit Leo", "mit Lea", "mit Nina", "allein", "leise", "im Garten", "im Zimmer", "am Tisch", "im Regen", "im Zug", "im Auto"], H: ["allein", "leise", "im Garten", "im Zimmer", "am Tisch", "im Regen", "im Zug", "im Auto"] } },
+    { v: "geht", c: { K: ["mit Mama", "mit Oma", "mit Opa", "mit Tim", "mit Mia", "mit Leo", "mit Lea", "mit Nina", "allein", "leise", "laut", "schnell", "langsam", "in den Wald", "zum Markt", "zu Oma", "zu Opa", "zu Mama"], H: ["allein", "leise", "laut", "schnell", "langsam", "in den Wald", "zum Markt"] } },
+    { v: "liest", c: { K: ["mit Mama", "mit Oma", "mit Opa", "mit Tim", "mit Mia", "mit Leo", "mit Lea", "mit Nina", "allein", "leise", "laut", "ein Märchen", "eine Karte", "ein Lexikon", "im Zug", "im Auto", "im Regen", "im Garten"], H: ["allein", "leise", "laut", "ein Märchen", "eine Karte", "ein Lexikon", "im Zug", "im Auto", "im Garten"] } },
+    { v: "hört", c: { H: ["Musik", "Radio", "ein Lied", "Regen", "Rock", "Reggae", "leise Musik", "laut Musik"] } },
+    { v: "kennt", c: { H: ["Rom", "Kairo", "Lima", "Oslo", "Kiel", "Italien", "Mali", "Kuba", "Kenia", "Tokio", "Toronto", "Berlin", "Paris", "den Wald", "den See", "das Meer", "einen Tiger", "ein Lied", "einen Igel"] } },
     { v: "$sound", c: { any: ["", "laut", "leise", "im Garten", "im Wald", "auf der Wiese", "im Regen"] } },
   ];
-  return { subjects, verbs, adverbs: ["heute", "jetzt", "oft", "morgen", "immer", "manchmal"].map((w) => ({ w, pos: "verb" })), places: { wild, farm } };
+  return { subjects, verbs, adverbs: ["heute", "jetzt", "oft", "morgen", "immer", "manchmal", "gern"].map((w) => ({ w, pos: "verb" })), places: { wild, farm } };
 })();
 
 const EN = (() => {

@@ -28,6 +28,8 @@ export const REQUIRED_FILES = Object.freeze([
   'counts-compute.mjs',
   'counts-worker.mjs',
   'sentences/cards.mjs',
+  'sentences/compose.mjs',
+  'sentences/vocab.mjs',
   'sentences/de.json',
   'sentences/en.json',
   'words-de.json',
