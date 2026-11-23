@@ -102,13 +102,15 @@ def test_homepage_projects_focus_and_structure():
     assert 'href="https://apps.apple.com/app/buchstabenzeit/id6831006870"' in html
     assert "Arithmoslayer" in html
     assert 'href="https://arithmoslayer.de"' in html
+    assert 'href="/ovara"' in html
+    assert 'href="https://books.apple.com/us/book/id6838287964"' in html
 
     # Verify all project artwork is present, referenced, and dimensioned.
     assets_dir = Path(__file__).resolve().parents[1] / "static" / "projects"
-    for asset_name in ("landhauscheck.webp", "buchstabenzeit.webp", "arithmoslayer.webp"):
+    for asset_name in ("landhauscheck.webp", "buchstabenzeit.webp", "arithmoslayer.webp", "ovara.webp"):
         assert (assets_dir / asset_name).is_file()
         assert f'/static/projects/{asset_name}' in html
-    for asset_name in ("landhauscheck.webp", "buchstabenzeit.webp", "arithmoslayer.webp"):
+    for asset_name in ("landhauscheck.webp", "buchstabenzeit.webp", "arithmoslayer.webp", "ovara.webp"):
         image_markup = re.search(
             rf'<img[^>]+src="/static/projects/{re.escape(asset_name)}(?:\?[^"]*)?"[^>]*>',
             html,
