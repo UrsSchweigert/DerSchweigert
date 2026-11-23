@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="description" content="The Man the Tide Brought In: an illustrated visual novel for iPhone, set in the water world of Ovara. Support, help and terms." />
+  <title>The Man the Tide Brought In | Visual novel for iPhone</title>
+  <link rel="icon" href="/static/favicon.svg" type="image/svg+xml" />
+  <link rel="stylesheet" href="/static/styles.css" />
+  <style>
+    .ov-hero { position: relative; margin-top: 8px; border-radius: var(--radius-lg); overflow: hidden; border: 1px solid var(--line-soft); box-shadow: var(--shadow); }
+    .ov-hero img { display: block; width: 100%; height: auto; }
+    .ov-intro { display: grid; grid-template-columns: 112px minmax(0, 1fr); gap: 24px; align-items: center; margin: 34px 0 6px; }
+    .ov-intro img { width: 112px; height: 112px; border-radius: 25px; box-shadow: var(--shadow); }
+    .ov-intro h1 { margin: 6px 0 8px; font-family: var(--font-display); font-size: clamp(1.9rem, 4vw, 2.9rem); line-height: 1.05; }
+    .ov-intro p { margin: 0 0 16px; color: var(--ivory-dim); max-width: 60ch; }
+    .ov-soon { opacity: 0.75; cursor: default; }
+    .ov-text { max-width: 68ch; }
+    .ov-text p { color: var(--ivory-dim); }
+    .ov-shots { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
+    .ov-shots img { display: block; width: 100%; height: auto; border-radius: var(--radius-sm); border: 1px solid var(--line-soft); }
+    .ov-faq details { border-top: 1px solid var(--line-soft); padding: 14px 0; }
+    .ov-faq summary { cursor: pointer; font-weight: 600; color: var(--ivory); }
+    .ov-faq p { margin: 10px 0 0; color: var(--ivory-dim); }
+    .ov-faq a, .ov-text a, .ov-terms a { color: var(--brass-light); }
+    .ov-terms { margin-top: clamp(48px, 6vw, 80px); padding-top: 18px; border-top: 1px solid var(--line-soft); font-size: 0.85rem; color: var(--muted); }
+    .ov-terms summary { cursor: pointer; font-family: var(--font-mono); font-size: 0.72rem; letter-spacing: 0.16em; text-transform: uppercase; }
+    .ov-terms h3 { font-size: 1rem; margin: 18px 0 6px; color: var(--ivory-dim); }
+    .ov-terms p { margin: 0 0 10px; }
+    @media (max-width: 640px) { .ov-intro { grid-template-columns: 1fr; } .ov-shots { grid-template-columns: 1fr; } }
+  </style>
+</head>
+<body>
+  <header class="navbar">
+    <div class="container nav-inner">
+      <a href="/" class="brand" aria-label="DerSchweigert – Startseite"><img src="/static/logo-mark.svg" alt="" width="38" height="38" /><span class="brand-name"><span class="brand-der">Der</span><span class="brand-main">Schweigert</span></span></a>
+      <button class="nav-toggle" type="button" aria-label="Menü öffnen" aria-expanded="false" aria-controls="primary-nav"><span></span></button>
+      <nav class="nav-links" id="primary-nav" aria-label="Hauptnavigation"><a href="/">Start</a><a href="#about">The game</a><a href="#support">Support</a></nav>
+    </div>
+  </header>
+
+  <main class="page-content">
+    <div class="container">
+      <div class="ov-hero">
+        <img src="/static/projects/ovara/hero.webp" alt="A man stands on a rock ledge under the sea and holds out a glowing light toward a vast ribbed skeleton of water and bone." width="1920" height="823" decoding="async" />
+      </div>
+
+      <div class="ov-intro">
+        <img src="/static/projects/ovara/icon.webp" alt="App icon: the hero looking upward in a golden kelp forest" width="256" height="256" />
+        <div>
+          <span class="eyebrow">Visual novel for iPhone</span>
+          <h1>The Man the Tide Brought In</h1>
+          <p>He wakes on the seabed with no name and no memory. A story of two peoples who have forgotten how to speak to each other, told in illustrated scenes.</p>
+          <span class="btn btn-primary ov-soon" aria-disabled="true">Coming to the App Store</span>
+        </div>
+      </div>
+
+      <section class="section ov-text" id="about">
+        <div class="section-head"><span class="eyebrow">The story</span><h2>A man with no past, a world of water</h2></div>
+        <p>He wakes at the bottom of a golden kelp forest, breathing water, with the feeling that he has done something terrible. A mariner girl named Sefa finds him and calls him Wrack, the name her people give to whatever the tide brings in.</p>
+        <p>Ovara is a vast ocean world. The mariners live in ancient cities under the sea, and those cities are failing. The agravars live on the islands above, ruled by corporations that pour their waste into the water. Into this world comes a stranger who must learn who he was before the sea decides who he will be.</p>
+        <p>The game follows the novel <em>The Man the Tide Brought In</em> and uses the author&rsquo;s own words.</p>
+      </section>
+
+      <section class="section ov-text">
+        <div class="section-head"><span class="eyebrow">New to visual novels?</span><h2>What is a visual novel?</h2></div>
+        <p>A visual novel is a story you read on screen, told through illustrated scenes instead of long blocks of text. Characters appear as portraits in front of painted backgrounds, and the words come a few lines at a time, like a book staged for the eye. You set the pace by tapping to go on. There are no puzzles and no reflexes to test. It sits between a novel and a graphic story, and it suits a quiet evening, a commute, or a long read in one sitting.</p>
+      </section>
+
+      <section class="section">
+        <div class="section-head"><span class="eyebrow">Screenshots</span><h2>A look inside</h2></div>
+        <div class="ov-shots">
+          <img src="/static/projects/ovara/shot-lamp.webp" alt="Scene from the game with dialogue box" width="1400" height="788" loading="lazy" decoding="async" />
+          <img src="/static/projects/ovara/shot-dragon.webp" alt="Scene from the game with dialogue box" width="1400" height="788" loading="lazy" decoding="async" />
+          <img src="/static/projects/ovara/shot-slick.webp" alt="Scene from the game with dialogue box" width="1400" height="788" loading="lazy" decoding="async" />
+          <img src="/static/projects/ovara/shot-okonta.webp" alt="Scene from the game with dialogue box" width="1400" height="788" loading="lazy" decoding="async" />
+        </div>
+      </section>
+
+      <section class="section ov-text" id="support">
+        <div class="section-head"><span class="eyebrow">Support</span><h2>Help and contact</h2></div>
+        <p>Something not working, or a question about the game? Write to <a href="mailto:info@derschweigert.de?subject=The%20Man%20the%20Tide%20Brought%20In">info@derschweigert.de</a>. Please say which iPhone and which iOS version you use, and what happened.</p>
+        <div class="ov-faq">
+          <details><summary>How do I save my place?</summary><p>To save, open the menu in the game and choose Save. To continue later, choose Load on the main menu.</p></details>
+          <details><summary>How do I jump to a chapter?</summary><p>Choose Chapters on the main menu.</p></details>
+          <details><summary>Does the game need an internet connection?</summary><p>No. The story and art are in the app.</p></details>
+          <details><summary>Does the game collect my data?</summary><p>No. There are no accounts, no ads and no tracking. Your saves stay on your phone. See the <a href="/datenschutz">privacy policy</a>.</p></details>
+          <details><summary>I deleted the app and lost my saves.</summary><p>Saves live on your phone, so deleting the app removes them. They are not backed up by us.</p></details>
+        </div>
+      </section>
+
+      <details class="ov-terms" id="terms">
+        <summary>Terms of use</summary>
+        <h3>Terms (English)</h3>
+        <p>&ldquo;The Man the Tide Brought In&rdquo; is provided by Urs Schweigert (see the <a href="/impressum">legal notice</a>). Our <a href="/nutzungsbedingungen">Shared Terms of Use</a> apply to this app. In addition:</p>
+        <p>The story text is taken from the novel of the same name. The text, illustrations and software of the game are protected by copyright. You may use the app for your own, private entertainment. You may not copy, resell or republish its contents without permission.</p>
+        <p>The game is provided as it is. Statutory rights are not affected. Questions: <a href="mailto:info@derschweigert.de">info@derschweigert.de</a>.</p>
+        <h3>Bedingungen (Deutsch)</h3>
+        <p>&bdquo;The Man the Tide Brought In&ldquo; wird von Urs Schweigert bereitgestellt (siehe <a href="/impressum">Impressum</a>). Für diese App gelten unsere <a href="/nutzungsbedingungen">Gemeinsamen Nutzungsbedingungen</a>. Ergänzend gilt:</p>
+        <p>Der Text der Geschichte stammt aus dem gleichnamigen Roman. Text, Bilder und Software des Spiels sind urheberrechtlich geschützt. Sie dürfen die App für Ihre eigene, private Unterhaltung nutzen. Eine Vervielfältigung, ein Weiterverkauf oder eine Wiederveröffentlichung der Inhalte ohne Erlaubnis ist nicht gestattet.</p>
+        <p>Das Spiel wird so bereitgestellt, wie es ist. Gesetzliche Rechte bleiben unberührt. Fragen: <a href="mailto:info@derschweigert.de">info@derschweigert.de</a>.</p>
+      </details>
+    </div>
+  </main>
+
+  <footer class="footer">
+    <div class="container footer-inner">
+      <div>Urs Schweigert</div>
+      <nav aria-label="Footer Navigation">
+        <a href="/impressum">Impressum</a>
+        <a href="/datenschutz">Datenschutz</a>
+        <a href="/nutzungsbedingungen">Nutzungsbedingungen</a>
+        <a href="mailto:info@derschweigert.de">Kontakt</a>
+      </nav>
+    </div>
+  </footer>
+  <script src="/static/app.js"></script>
+</body>
+</html>
