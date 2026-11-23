@@ -545,6 +545,10 @@ const DICTIONARY = {
   'difficulty.medium.detail': { en: '10 seconds · 5 hearts', de: '10 Sekunden · 5 Herzen' },
   'difficulty.hard.label': { en: 'Hard', de: 'Schwer' },
   'difficulty.hard.detail': { en: '5 seconds · 3 hearts', de: '5 Sekunden · 3 Herzen' },
+  // Title buttons while the player is in Campaign II (Genius): same timers and hearts, clearer names.
+  'difficulty.easy.labelGenius': { en: 'Genius Easy', de: 'Genie Leicht' },
+  'difficulty.medium.labelGenius': { en: 'Genius Medium', de: 'Genie Mittel' },
+  'difficulty.hard.labelGenius': { en: 'Genius Hard', de: 'Genie Schwer' },
 
   'legal.impressum': { en: 'Impressum', de: 'Impressum' },
   'legal.privacy': { en: 'Privacy', de: 'Datenschutz' },

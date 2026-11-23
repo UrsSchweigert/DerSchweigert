@@ -14,8 +14,8 @@ test('the difficulty click wiring only matches the buttons that start a level', 
   // Back button appeared to do nothing but load an exercise.
   assert.doesNotMatch(main, /#difficulty-select \.diff-btn/, 'the class alone also matches the Back buttons');
   assert.match(main, /querySelectorAll\('#difficulty-select \[data-difficulty\]'\)\.forEach\(btn => \{/);
-  assert.equal((main.match(/querySelectorAll\('#difficulty-select \[data-difficulty\]'\)/g) || []).length, 2,
-    'the click wiring and the busy sweep share one set of buttons');
+  assert.equal((main.match(/querySelectorAll\('#difficulty-select \[data-difficulty\]'\)/g) || []).length, 3,
+    'the click wiring, the busy sweep and the Genius relabel share one set of buttons');
 });
 
 test('the overlay keeps its navigation buttons out of the difficulty contract', () => {
