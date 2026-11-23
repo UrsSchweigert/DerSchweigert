@@ -41,7 +41,7 @@ locals {
     Domain    = local.domain
   }
 
-  # Viewer-request function for the default behavior. The legal pages are
+  # Viewer-request function for the default behavior. The legal pages and the /ovara page are
   # uploaded to S3 as HTML files; this rewrites their public, extensionless URLs
   # so the S3 origin resolves the object instead of 403-ing on a missing key.
   # (Until 2026-11-18 it also carried a PIN gate and a /contact 410; both were
@@ -50,7 +50,7 @@ locals {
   function handler(event) {
     var request = event.request;
     var uri = request.uri || '/';
-    if (uri === '/impressum' || uri === '/datenschutz' || uri === '/nutzungsbedingungen') {
+    if (uri === '/impressum' || uri === '/datenschutz' || uri === '/nutzungsbedingungen' || uri === '/ovara') {
       request.uri = uri + '.html';
     }
     return request;

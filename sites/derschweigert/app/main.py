@@ -79,6 +79,11 @@ def service_page(slug: str) -> HTMLResponse:
     return HTMLResponse(path.read_text(encoding="utf-8"))
 
 
+@app.get("/ovara", response_class=HTMLResponse)
+def ovara_page() -> HTMLResponse:
+    return HTMLResponse((TEMPLATES_DIR / "ovara.html").read_text(encoding="utf-8"))
+
+
 @app.get("/impressum", response_class=HTMLResponse)
 def impressum_page() -> HTMLResponse:
     return HTMLResponse((TEMPLATES_DIR / "impressum.html").read_text(encoding="utf-8"))

@@ -53,6 +53,11 @@ def test_legal_pages_are_rewritten_to_their_html_objects():
     assert all(r["status"] == 200 and r.get("location") is None for r in results)
 
 
+def test_ovara_page_is_rewritten_to_its_html_object():
+    result = run_function(["/ovara"])[0]
+    assert result["requestUri"] == "/ovara.html"
+
+
 def test_every_other_path_passes_through_unchanged_without_a_gate():
     paths = ["/", "/services/websites", "/static/app.js", "/unlock", "/contact", "/admin.html"]
     for cookie in (None, "ams_pin=1"):

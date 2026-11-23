@@ -75,6 +75,14 @@ def test_nutzungsbedingungen_is_publicly_accessible_in_production():
     assert "ffm.derschweigert.de/terms.html" in response.text
 
 
+def test_ovara_page_has_support_and_terms():
+    response = client.get("/ovara", follow_redirects=False)
+    assert response.status_code == 200
+    assert "The Man the Tide Brought In" in response.text
+    assert 'id="support"' in response.text
+    assert 'id="terms"' in response.text
+
+
 def test_homepage_projects_focus_and_structure():
     """Verify homepage has project cards, Android app, contact mailto, and valid HTML structure."""
     from app.config import get_settings
