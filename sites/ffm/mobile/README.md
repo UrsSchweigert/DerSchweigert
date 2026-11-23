@@ -364,7 +364,7 @@ dependencies, prepares and verifies the offline bundle, syncs native plugins, an
 mobile tests before Xcode resolves packages. It uses Node.js 22+ or installs Homebrew's
 `node@22` on the Cloud runner if needed. Preparation failures stop the build.
 
-Version 1.1 is live on the App Store, so `MARKETING_VERSION` now names 1.1.2: an
+Version 1.1 is live on the App Store, so `MARKETING_VERSION` now names 1.1.3: an
 upload that still carries a released version is refused at the App Store Connect
 hand-off, after the archive has already succeeded. `ios/RELEASED_VERSION` records
 the public version and `npm test` fails while `MARKETING_VERSION` is not newer, so
