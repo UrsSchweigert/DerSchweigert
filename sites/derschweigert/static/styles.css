@@ -372,7 +372,7 @@ h1.hero-title {
 .work-tile__tag {
   position: absolute;
   left: 12px;
-  bottom: 12px;
+  top: 12px;
   display: inline-flex;
   align-items: center;
   gap: 7px;

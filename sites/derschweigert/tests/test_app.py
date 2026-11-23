@@ -102,6 +102,9 @@ def test_homepage_projects_focus_and_structure():
     assert 'href="https://apps.apple.com/app/buchstabenzeit/id6831006870"' in html
     assert 'href="https://play.google.com/store/apps/details?id=de.derschweigert.buchstabenzeit"' in html
     assert "Geschlossener Test" not in html
+    # The small hero tiles say where each product is available, not just a status.
+    tags = re.findall(r'<span class="work-tile__tag">([^<]+)</span>', html)
+    assert tags == ["Web", "Web · iOS · Android", "Web · iOS", "iOS · Apple Books · Bald"]
     assert "Arithmo Slayer" in html
     assert "Arithmoslayer" not in html
     assert 'href="https://arithmoslayer.de"' in html
