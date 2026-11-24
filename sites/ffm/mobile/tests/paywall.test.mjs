@@ -52,10 +52,10 @@ test('paywall copy and markup are bilingual', () => {
 
   const english = buildPaywallMarkup({ locale: 'en', price: '4,99 €' });
   const german = buildPaywallMarkup({ locale: 'de', price: '4,99 €' });
-  assert.match(english, /Unlock levels 3-60/);
+  assert.match(english, /Unlock levels 7-60/);
   assert.match(english, /Buy for 4,99 €/);
   assert.match(english, /Restore purchase/);
-  assert.match(german, /Level 3–60 freischalten/);
+  assert.match(german, /Level 7–60 freischalten/);
   assert.match(german, /Kauf wiederherstellen/);
   assert.match(english, /aria-modal="true"/);
   assert.match(english, /aria-live="polite"/);

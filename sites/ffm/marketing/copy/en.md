@@ -37,7 +37,7 @@ BUILT FOR A FAMILY
 Separate local profiles on the device, each with its own name, scores and level checkpoints. Switching player takes one tap on the title screen. No sign-up, no account, no chat, no ads, no analytics, no tracking.
 
 PAY ONCE
-The app is a one-time purchase that unlocks levels 3–60 for every profile on the device. No subscription, no renewal, no virtual currency. Levels 1–2 are free to try. The game is fully playable offline — only the purchase and a restore need a connection.
+The app is a one-time purchase that unlocks levels 7–60 for every profile on the device. No subscription, no renewal, no virtual currency. Levels 1–6 are free to try. The game is fully playable offline — only the purchase and a restore need a connection.
 
 PRIVACY
 No account and no tracking. The privacy policy is bundled into the app and linked below.
@@ -96,7 +96,7 @@ Instagram / Facebook:
 >
 > • Shapes mode for kindergarten, Easy to Hard for the rest of the family
 > • A local profile per player, no account, no ads, no tracking
-> • One-time purchase, levels 3–60 unlocked for the whole device
+> • One-time purchase, levels 7–60 unlocked for the whole device
 >
 > German and English. Link in bio.
 
@@ -118,9 +118,9 @@ Fact sheet:
 | Item | Value |
 | --- | --- |
 | Platforms | iPhone (App Store), browser, Android in open beta |
-| iOS price | EUR 2.99 one-time, unlocks levels 3–60 |
+| iOS price | EUR 2.99 one-time, unlocks levels 7–60 |
 | Browser price | EUR 1.99 every 3 months |
-| Free tier | Levels 1–2 |
+| Free tier | Levels 1–6 |
 | Levels / acts | 60 levels, 6 acts, 36 fiends, 1 dragon |
 | Modes | Shapes, Easy, Medium, Hard |
 | Languages | German, English |

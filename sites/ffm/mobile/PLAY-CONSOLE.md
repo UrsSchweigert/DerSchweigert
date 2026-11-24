@@ -46,7 +46,7 @@ Self-Certified Ads SDK program or about a neutral age screen.
 
 **All functionality in this app is available without restrictions.** There is no
 login, account, redeem code or region gate. The app opens and plays without the
-in-app purchase; the purchase unlocks levels 3-60.
+in-app purchase; the purchase unlocks levels 7-60.
 
 ### Privacy policy
 

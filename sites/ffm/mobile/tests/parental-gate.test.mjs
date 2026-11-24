@@ -1,13 +1,17 @@
 // parental-gate.test.mjs — unit tests for the bilingual adult check.
 //
 // The gate must not be solvable with the game's own level arithmetic: the
-// free levels add up to 12, while the gate multiplies operands of 6-12 and
+// free levels add up to 24, while the gate multiplies operands of 6-12 and
 // spells them out in words. These tests also pin the accessible markup and
 // the injectable async gate() contract used by purchase, restore and
 // external-link callers.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { LevelConfig } from '../../static/game/levels.js';
+import { readFileSync } from 'node:fs';
+import { FREE_LEVEL_COUNT } from '../game/platform-adapter.js';
+
+// The free levels past the bundled two live only in the generated level data.
+const LevelConfig = JSON.parse(readFileSync(new URL('../../app/level_data.json', import.meta.url), 'utf8')).levels;
 import {
   DEFAULT_LOCALE,
   GATED_ACTIONS,
@@ -99,12 +103,12 @@ test('challenges multiply operands inside the 6-12 range', () => {
 });
 
 test('the challenge is distinct from the free levels arithmetic', () => {
-  const freeLevels = LevelConfig.filter((level) => level.level <= 2);
+  const freeLevels = LevelConfig.filter((level) => level.level <= FREE_LEVEL_COUNT);
   assert.ok(freeLevels.length > 0);
   const maxFreeResult = Math.max(...freeLevels.map((level) => level.maxResult));
   const freeOperations = new Set(freeLevels.flatMap((level) => level.operations));
   assert.deepEqual([...freeOperations], ['+']);
-  assert.ok(maxFreeResult <= 12);
+  assert.ok(maxFreeResult <= 24);
 
   // Multiplication of two operands >= 6 always exceeds the free levels.
   assert.ok(MIN_OPERAND * MIN_OPERAND > maxFreeResult);

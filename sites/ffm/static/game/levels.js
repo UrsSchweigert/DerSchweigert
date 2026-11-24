@@ -1,5 +1,11 @@
-// Public level data contains only the two free levels.
+// The public bundle carries only levels 1-2; levels 3-FREE_LEVELS are free too but come from
+// the API (no login needed), so the bundle stays small and the later configs stay server-side.
 export const TOTAL_LEVELS = 60;
+// Campaign I levels playable without an entitlement. Keep equal to FREE_LEVELS in
+// app/entitlements.py and mobile/game/platform-adapter.js (tests check all three).
+export const FREE_LEVELS = 6;
+// Campaign II (Genius) levels playable without the subscription or purchase.
+export const FREE_LEVELS_2 = 3;
 export const LevelConfig = [
   { level: 1, chapter: 1, chapterName: 'Grade 1 Foundations', operations: ['+'],
     operandRange: { a: [1, 3], b: [1, 3] }, maxResult: 6,
@@ -335,7 +341,7 @@ function drawEquation(cfg, operation, rangeA, rangeB, answerCeiling, rng) {
  *   an operand, `missing: false` never does (boss rounds use these).
  */
 export function generateProblem(levelIndex, rngSeed, config, options = {}) {
-  // For levels 0-1 (free levels 1-2), allow default fallback to LevelConfig
+  // For levels 0-1 (bundled free levels 1-2), allow default fallback to LevelConfig
   // For levels 2+ (premium levels 3+), require explicit config parameter
   let cfg = config;
   if (!cfg) {

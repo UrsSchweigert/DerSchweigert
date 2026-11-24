@@ -885,7 +885,7 @@ test('prices: Campaign I 2,99 EUR and Campaign II 1,99 EUR, each its own purchas
     assert.equal(DICTIONARY['prices.app.name'][locale], `${gameT('campaign.switch.eyebrow1')}: ${gameT('campaign.switch.title1')}`, `${locale} app card is ${campaign1}`);
     assert.match(DICTIONARY['prices.compare.r2app'][locale], /2[.,]99.*1[.,]99/);
     assert.match(DICTIONARY['prices.c2.note'][locale], /(Abenteuer I ist nicht nötig|Campaign I is not needed)/);
-    assert.match(DICTIONARY['prices.app.f1'][locale], /1–2/, 'the free levels belong to Campaign I');
+    assert.match(DICTIONARY['prices.app.f1'][locale], /1–6/, 'the free levels belong to Campaign I');
   }
   assert.doesNotMatch(DICTIONARY['prices.c2.period'].de, /Store/, 'the price is stated, not deferred to the store');
 });

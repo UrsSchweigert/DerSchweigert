@@ -86,6 +86,6 @@ test('the Campaign II paywall copy is bilingual and says what is sold', () => {
   assert.match(en, /Unlock Campaign II/);
   assert.match(de, /Abenteuer II freischalten/);
   assert.match(buildPaywallMarkup({ locale: 'en', product: 'campaign2' }), /Buy Campaign II/);
-  assert.doesNotMatch(en, /levels 3-60/);
-  assert.match(buildPaywallMarkup({ locale: 'en' }), /Unlock levels 3-60/, 'the default paywall is unchanged');
+  assert.doesNotMatch(en, /levels 7-60/);
+  assert.match(buildPaywallMarkup({ locale: 'en' }), /Unlock levels 7-60/, 'the default paywall is unchanged');
 });

@@ -302,7 +302,7 @@ internal track, `jarsigner -verify` and the install/upgrade checks stay manual.
 ## Product and store setup checklist (owner)
 
 - Product id `arithmoslayer_full_unlock`, one **non-consumable** (one-time
-  permanent unlock of levels 3-60). No subscription, no consumable, no
+  permanent unlock of levels 7-60). No subscription, no consumable, no
   server-side verification: the entitlement is checked on device and cached.
 - Price set by the owner; the app shows the store's localised price and never a
   hard-coded one.
@@ -408,11 +408,11 @@ Traps worth knowing:
 Run on the internal track (Play) or with a sandbox Apple ID (App Store
 Connect), on a physical device with a working store:
 
-1. Fresh install, confirm levels 1-2 play offline and level 3+ shows the paywall.
+1. Fresh install, confirm levels 1-6 play offline and level 7+ shows the paywall.
 2. Purchase `arithmoslayer_full_unlock` through the parental gate; confirm the
    store sheet shows the localised price and the unlock survives a restart and
    an offline launch.
-3. Restore on a fresh install (same account) and confirm levels 3-60 unlock with
+3. Restore on a fresh install (same account) and confirm levels 7-60 unlock with
    no second charge.
 4. Pending / Ask-to-Buy: confirm the app reports pending and grants the unlock
    only after the approval arrives.
@@ -620,7 +620,7 @@ the uploaded build number in the release record.
   and no data collection.
 - Two independent non-consumable in-app purchases, listed side by side on the
   Players page (title screen, "Players" tab): `arithmoslayer_full_unlock`
-  unlocks levels 3-60 of Campaign I, and `arithmoslayer_genius_unlock` unlocks
+  unlocks levels 7-60 of Campaign I, and `arithmoslayer_genius_unlock` unlocks
   Campaign II (Genius). Neither needs the other and neither needs any game
   progress, so both are reachable on a fresh install. One "Restore purchase"
   on the Players page (and on the paywall) restores both. Screenshots:

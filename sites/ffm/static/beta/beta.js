@@ -76,15 +76,15 @@ export const DICTIONARY = {
     en: 'On the App Store – TestFlight is no longer needed',
   },
   'beta.ios.costLabel': { de: 'Kosten', en: 'Cost' },
-  'beta.ios.costValue': { de: 'Level 1–2 gratis, der Rest als Einmalkauf', en: 'Levels 1–2 free, the rest as a one-time purchase' },
+  'beta.ios.costValue': { de: 'Level 1–6 gratis, der Rest als Einmalkauf', en: 'Levels 1–6 free, the rest as a one-time purchase' },
   'beta.ios.note': {
     de: 'Danke an alle, die mitgetestet haben: Jede Meldung aus der Beta haben wir gelesen, und vieles davon steckt jetzt in der Store-Version. Fehler oder Wünsche? Schreib uns weiter an info@derschweigert.de.',
     en: 'Thank you to everyone who tested with us: we read every beta report, and much of it is in the store version now. Something broken or missing? Keep writing to info@derschweigert.de.',
   },
   'beta.ios.unlockTitle': { de: 'Vollversion nach der Beta', en: 'Full version after the beta' },
   'beta.ios.unlockText': {
-    de: 'Der kostenlose Beta-Zugang ist vorbei. Level 1–2 bleiben gratis; Level 3–60 schaltest du im App Store mit einem Einmalkauf frei – kein Abo, keine Verlängerung.',
-    en: 'The free beta access is over. Levels 1–2 stay free; you unlock levels 3–60 on the App Store with a one-time purchase – no subscription, no renewal.',
+    de: 'Der kostenlose Beta-Zugang ist vorbei. Level 1–6 bleiben gratis; Level 7–60 schaltest du im App Store mit einem Einmalkauf frei – kein Abo, keine Verlängerung.',
+    en: 'The free beta access is over. Levels 1–6 stay free; you unlock levels 7–60 on the App Store with a one-time purchase – no subscription, no renewal.',
   },
 
   // Android track
@@ -102,7 +102,7 @@ export const DICTIONARY = {
     en: 'Play test track by invitation to your Google address',
   },
   'beta.android.costLabel': { de: 'Kosten', en: 'Cost' },
-  'beta.android.costValue': { de: 'Kostenlos, Level 1–2 bleiben gratis', en: 'Free, levels 1–2 stay free' },
+  'beta.android.costValue': { de: 'Kostenlos, Level 1–6 bleiben gratis', en: 'Free, levels 1–6 stay free' },
   'beta.android.oneTitle': { de: 'Google-Adresse eintragen', en: 'Enter your Google address' },
   'beta.android.oneText': {
     de: 'Trag die Adresse deines Google-Kontos in das Formular ein – mehr brauchen wir nicht, kein Passwort und kein Profil.',
@@ -188,8 +188,8 @@ export const DICTIONARY = {
   'beta.faq.title': { de: 'Häufige Fragen zur Beta', en: 'Frequently asked questions about the beta' },
   'beta.faq.q1': { de: 'Was kostet die App?', en: 'What does the app cost?' },
   'beta.faq.a1': {
-    de: 'Level 1–2 sind gratis, auch nach der Beta. Level 3–60 schaltest du im App Store mit einem Einmalkauf frei – kein Abo. In der laufenden Android-Beta ist die Vollversion per Play-Promo-Code kostenlos.',
-    en: 'Levels 1–2 are free, after the beta too. You unlock levels 3–60 on the App Store with a one-time purchase – no subscription. In the running Android beta the full version is free via a Play promo code.',
+    de: 'Level 1–6 sind gratis, auch nach der Beta. Level 7–60 schaltest du im App Store mit einem Einmalkauf frei – kein Abo. In der laufenden Android-Beta ist die Vollversion per Play-Promo-Code kostenlos.',
+    en: 'Levels 1–6 are free, after the beta too. You unlock levels 7–60 on the App Store with a one-time purchase – no subscription. In the running Android beta the full version is free via a Play promo code.',
   },
   'beta.faq.q2': {
     de: 'Brauche ich ein Konto oder eine E-Mail-Adresse?',

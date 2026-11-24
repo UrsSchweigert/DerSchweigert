@@ -138,6 +138,7 @@ it('stops music when access is denied for premium level', () => {
       if (key === 'auth.failedToLoadLevel') return `Failed to load level ${data?.level}`;
       return key;
     },
+    FREE_LEVELS: 6,
     savePendingRecord() {},
     practiceRun: null,
     showPracticeStatus() {},
@@ -156,19 +157,19 @@ it('stops music when access is denied for premium level', () => {
   vm.createContext(context);
   vm.runInContext(`${fn}`, context);
 
-  // Test 403 access denied error for L3
+  // Test 403 access denied error for L7
   audioStopBGMCalls.length = 0;
-  vm.runInContext('handleLevelConfigError({ statusCode: 403 }, 2);', context);
+  vm.runInContext('handleLevelConfigError({ statusCode: 403 }, 6);', context);
   assert.equal(audioStopBGMCalls.length, 1, 'stopBGM should be called on 403 error');
   assert.equal(context.diffSelect.style.display, 'flex', 'diffSelect should be shown on error');
   assert.equal(context.authStatusModal.style.display, 'flex', '403 error should show status modal');
 
-  // Test 402 billing required error for L3
+  // Test 402 billing required error for L7
   audioStopBGMCalls.length = 0;
   context.openBillingPanel = () => {
     context.accountModal = { style: { display: 'flex' } };
   };
-  vm.runInContext('handleLevelConfigError({ statusCode: 402 }, 2);', context);
+  vm.runInContext('handleLevelConfigError({ statusCode: 402 }, 6);', context);
   assert.equal(audioStopBGMCalls.length, 1, 'stopBGM should be called on 402 error');
   assert.equal(context.diffSelect.style.display, 'flex', 'diffSelect should be shown on error');
 });

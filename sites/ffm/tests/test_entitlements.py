@@ -397,7 +397,7 @@ class TestLevelAccess:
         assert allowed is True
         assert code is None
 
-    def test_level_3_requires_auth(self, aws_mock):
+    def test_free_levels_need_no_account(self, aws_mock):
         config = type('Config', (), {
             'get': lambda self, key, default=None: {
                 'ACCESS_CONTROL_ENABLED': True,
@@ -405,12 +405,25 @@ class TestLevelAccess:
             }.get(key, default)
         })()
 
-        allowed, code, status = entitlements.require_level_access(None, 3, app_config=config)
+        assert entitlements.FREE_LEVELS == 6
+        for level in range(1, entitlements.FREE_LEVELS + 1):
+            allowed, code, _ = entitlements.require_level_access(None, level, app_config=config)
+            assert (allowed, code) == (True, None), level
+
+    def test_first_paid_level_requires_auth(self, aws_mock):
+        config = type('Config', (), {
+            'get': lambda self, key, default=None: {
+                'ACCESS_CONTROL_ENABLED': True,
+                'GRANDFATHER_CUTOFF': '',
+            }.get(key, default)
+        })()
+
+        allowed, code, status = entitlements.require_level_access(None, entitlements.FREE_LEVELS + 1, app_config=config)
         assert allowed is False
         assert code == 401
 
-    def test_level_3_requires_email_verification(self, aws_mock):
-        models.create_user('unverified_l3', 'unverified_l3@example.com', 'hash')
+    def test_first_paid_level_requires_email_verification(self, aws_mock):
+        models.create_user('unverified_l7', 'unverified_l7@example.com', 'hash')
 
         config = type('Config', (), {
             'get': lambda self, key, default=None: {
@@ -419,13 +432,13 @@ class TestLevelAccess:
             }.get(key, default)
         })()
 
-        allowed, code, status = entitlements.require_level_access('unverified_l3', 3, app_config=config)
+        allowed, code, status = entitlements.require_level_access('unverified_l7', entitlements.FREE_LEVELS + 1, app_config=config)
         assert allowed is False
         assert code == 403
 
-    def test_level_3_requires_payment(self, aws_mock):
-        models.create_user('free_l3', 'free_l3@example.com', 'hash')
-        models.set_email_verified('free_l3', True)
+    def test_first_paid_level_requires_payment(self, aws_mock):
+        models.create_user('free_l7', 'free_l7@example.com', 'hash')
+        models.set_email_verified('free_l7', True)
 
         config = type('Config', (), {
             'get': lambda self, key, default=None: {
@@ -434,13 +447,13 @@ class TestLevelAccess:
             }.get(key, default)
         })()
 
-        allowed, code, status = entitlements.require_level_access('free_l3', 3, app_config=config)
+        allowed, code, status = entitlements.require_level_access('free_l7', entitlements.FREE_LEVELS + 1, app_config=config)
         assert allowed is False
         assert code == 402
 
-    def test_level_3_allowed_with_payment(self, aws_mock):
-        user = models.create_user('paid_l3', 'paid_l3@example.com', 'hash')
-        models.set_email_verified('paid_l3', True)
+    def test_first_paid_level_allowed_with_payment(self, aws_mock):
+        user = models.create_user('paid_l7', 'paid_l7@example.com', 'hash')
+        models.set_email_verified('paid_l7', True)
 
         future_time = (datetime.now(timezone.utc) + timedelta(days=90)).isoformat()
         billing_store.put_billing_state(
@@ -456,7 +469,7 @@ class TestLevelAccess:
             }.get(key, default)
         })()
 
-        allowed, code, status = entitlements.require_level_access('paid_l3', 3, app_config=config)
+        allowed, code, status = entitlements.require_level_access('paid_l7', entitlements.FREE_LEVELS + 1, app_config=config)
         assert allowed is True
         assert code is None
 

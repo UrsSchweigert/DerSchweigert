@@ -90,11 +90,11 @@ function fakeView() {
   return view;
 }
 
-test('a fresh install restores the purchase, caches the entitlement and opens level 3', async () => {
+test('a fresh install restores the purchase, caches the entitlement and opens level 7', async () => {
   reset();
   fake.restorable = [owned()];
 
-  await assert.rejects(platform.getAuthorizedLevelConfig(2), locked);
+  await assert.rejects(platform.getAuthorizedLevelConfig(6), locked);
   assert.equal((await platform.getBillingStatus()).premium_access, false);
 
   const result = await store().restore({ ui: passingUi, locale: 'en' });
@@ -113,10 +113,10 @@ test('a fresh install restores the purchase, caches the entitlement and opens le
   assert.equal(cached.entitled, true);
   assert.equal(cached.transaction_id, 'tx-restored');
 
-  await assert.rejects(platform.getAuthorizedLevelConfig(2), unlocked);
+  await assert.rejects(platform.getAuthorizedLevelConfig(6), unlocked);
 });
 
-test('nothing to restore leaves the cache unset and level 3 locked', async () => {
+test('nothing to restore leaves the cache unset and level 7 locked', async () => {
   reset();
 
   const result = await store().restore({ ui: passingUi, locale: 'de' });
@@ -128,7 +128,7 @@ test('nothing to restore leaves the cache unset and level 3 locked', async () =>
   assert.equal(status.premium_access, false);
   assert.equal(status.offline, false);
   assert.equal(JSON.parse(preferences.get(ENTITLEMENT_KEY)).entitled, false);
-  await assert.rejects(platform.getAuthorizedLevelConfig(2), locked);
+  await assert.rejects(platform.getAuthorizedLevelConfig(6), locked);
 });
 
 test('a store error during restore is reported and grants nothing', async () => {
@@ -141,7 +141,7 @@ test('a store error during restore is reported and grants nothing', async () => 
   assert.equal(result.entitled, false);
   assert.equal(result.error, 'Restore failed');
   assert.equal(preferences.has(ENTITLEMENT_KEY), false);
-  await assert.rejects(platform.getAuthorizedLevelConfig(2), locked);
+  await assert.rejects(platform.getAuthorizedLevelConfig(6), locked);
 });
 
 test('a denied parental gate blocks restore before the store is called', async () => {
@@ -153,7 +153,7 @@ test('a denied parental gate blocks restore before the store is called', async (
   assert.deepEqual(result, { outcome: RESTORE_OUTCOMES.GATED, entitled: false });
   assert.equal(fake.restoreCalls, 0);
   assert.equal(preferences.has(ENTITLEMENT_KEY), false);
-  await assert.rejects(platform.getAuthorizedLevelConfig(2), locked);
+  await assert.rejects(platform.getAuthorizedLevelConfig(6), locked);
 });
 
 test('the paywall renders a bilingual, gated restore action', () => {
@@ -192,7 +192,7 @@ test('the paywall restore refreshes the entitlement and resumes the level', asyn
   assert.equal(view.closed, true);
   assert.equal(view.statuses.at(-1).text, paywallText('paywall.restored', 'en'));
   assert.equal(preferences.has(ENTITLEMENT_KEY), true);
-  await assert.rejects(platform.getAuthorizedLevelConfig(2), unlocked);
+  await assert.rejects(platform.getAuthorizedLevelConfig(6), unlocked);
 });
 
 test('the paywall reports nothing-to-restore and restore errors without granting', async () => {
@@ -237,7 +237,7 @@ function paywallFor(view, granted) {
   });
 }
 
-test('one restore action restores the unlock and opens level 3', async () => {
+test('one restore action restores the unlock and opens level 7', async () => {
   reset();
   fake.restorable = [owned()];
   const view = fakeView();
@@ -249,7 +249,7 @@ test('one restore action restores the unlock and opens level 3', async () => {
   assert.deepEqual(granted, ['resume']);
   assert.equal(JSON.parse(preferences.get(ENTITLEMENT_KEY)).entitled, true);
   assert.equal((await platform.getBillingStatus()).premium_access, true);
-  await assert.rejects(platform.getAuthorizedLevelConfig(2), unlocked);
+  await assert.rejects(platform.getAuthorizedLevelConfig(6), unlocked);
 });
 
 test('error, denied gate and nothing to restore write no key', async () => {

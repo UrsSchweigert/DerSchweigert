@@ -59,7 +59,7 @@ score-history chart and a levels-completed overview) from that store. The web ad
 the server leaderboard unchanged.
 
 `game/parental-gate.js` is the bilingual adult check for purchases, restores and links that leave the app. It asks
-for the product of two operands spelled out in words between 6 and 12, which the free levels' addition up to 12
+for the product of two operands spelled out in words between 6 and 12, which the free levels' addition up to 24
 cannot solve, and exposes an async `gate({ ui, random, locale, action })` that resolves true only for the exact
 product. `buildGateMarkup()` returns the accessible dialog (role, labels, numeric input, no answer); the UI is
 injected, so the module has no DOM dependency and `tests/parental-gate.test.mjs` drives it with a fake UI.
@@ -71,7 +71,7 @@ acknowledging/finishing the transaction when the store asks for it), cancelled, 
 or error. There is no backend and no third-party purchase service; `THIRD-PARTY-LICENSES.md` records the plugin
 licence. `tests/purchase.test.mjs` drives the module with a fake plugin and a fake gate, while
 `tests/restore.test.mjs` runs the real adapter, entitlement cache and paywall against a fake Capacitor
-scope: a fresh-install restore unlocks levels 3-60, and a nothing-to-restore result, a store error and a
+scope: a fresh-install restore unlocks levels 7-60, and a nothing-to-restore result, a store error and a
 denied parental gate leave the cache and the levels untouched.
 
 `game/lifecycle.js` is the app lifecycle seam. `main.js` imports it only in the app build (inside the
@@ -190,7 +190,7 @@ Two gates keep it from being a way around the store:
 
 - **App only.** The website has no local profiles, and no level-test path.
 - **Paid unlock only.** The hatch follows the cached store entitlement. On an
-  unpaid device the tiles stay locked, because level 3 and up would only reach
+  unpaid device the tiles stay locked, because level 7 and up would only reach
   the paywall anyway — `getAuthorizedLevelConfig()` still refuses them.
 
 The rule lives in `static/game/test-profile.js` (`isLevelTestProfile`,

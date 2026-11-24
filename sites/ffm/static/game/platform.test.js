@@ -22,7 +22,7 @@ const {
   assertPlatformAdapter,
   resolvePlatform,
 } = await import('./platform.js');
-const { LevelConfig } = await import('./levels.js');
+const { LevelConfig, FREE_LEVELS } = await import('./levels.js');
 const { default: webPlatform } = await import('./platform-adapter.js');
 const { default: appPlatform, PlatformUnavailableError } = await import('../../mobile/game/platform-adapter.js');
 
@@ -229,11 +229,23 @@ describe('app platform adapter', () => {
     assert.equal(appPlatform.username, null);
   });
 
-  it('serves levels 1-2 and locks the rest until entitled', async () => {
+  it('keeps the free-level count equal across web, app and server', async () => {
+    const { FREE_LEVEL_COUNT } = await import('../../mobile/game/platform-adapter.js');
+    assert.equal(FREE_LEVEL_COUNT, FREE_LEVELS);
+    const server = await readFile(new URL('../../app/entitlements.py', import.meta.url), 'utf8');
+    assert.match(server, new RegExp(`^FREE_LEVELS = ${FREE_LEVELS}$`, 'm'));
+  });
+
+  it('serves levels 1-2 inline, leaves 3-6 to the bundle and locks the rest until entitled', async () => {
     assert.deepEqual(await appPlatform.getAuthorizedLevelConfig(0), LevelConfig[0]);
     assert.deepEqual(await appPlatform.getAuthorizedLevelConfig(1), LevelConfig[1]);
+    // Free, so never the paywall; without the generated bundle the answer is "unavailable".
     await assert.rejects(
-      appPlatform.getAuthorizedLevelConfig(2),
+      appPlatform.getAuthorizedLevelConfig(FREE_LEVELS - 1),
+      (error) => error.statusCode === 404 && error.code !== 'entitlement_required',
+    );
+    await assert.rejects(
+      appPlatform.getAuthorizedLevelConfig(FREE_LEVELS),
       (error) => error instanceof PlatformUnavailableError && error.code === 'entitlement_required',
     );
   });

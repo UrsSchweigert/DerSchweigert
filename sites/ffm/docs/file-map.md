@@ -1232,8 +1232,8 @@ facts missing and one inaccurate claim. The following was added to `_VERIFICATIO
 `['de']` — the welcome email only, not a general rewrite of legal/declaration text (that stays in
 the separate contract-confirmation email):
 
-- Free vs. paid level boundary (levels 1-2 free forever, 3-60 require Premium), cross-checked
-  against `app/entitlements.py`'s actual `level <= 2` gate, not assumed from memory.
+- Free vs. paid level boundary (levels 1-6 free forever, 7-60 require Premium), cross-checked
+  against `app/entitlements.py`'s actual `level <= FREE_LEVELS` gate, not assumed from memory.
 - Price/renewal cadence, worded to match `app/legal_texts.py`'s actual constants (`PRICE_EUR`/
   `PRICE_EUR_EN`, `BILLING_INTERVAL_MONTHS`) and its existing "all applicable taxes included"
   phrasing (deliberately not VAT-specific, since the subscriber's jurisdiction/tax regime isn't

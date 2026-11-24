@@ -50,8 +50,8 @@ export const DICTIONARY = {
   'hero.ctaPlayStore': { de: 'Bald bei Google Play', en: 'Coming soon to Google Play' },
   'hero.ctaApp': { de: 'Zur App-Version', en: 'About the app version' },
   'hero.print': {
-    de: 'Level 1–2 gratis – ohne Konto zum Ausprobieren.',
-    en: 'Levels 1–2 free – no account needed to try.',
+    de: 'Level 1–6 gratis – ohne Konto zum Ausprobieren.',
+    en: 'Levels 1–6 free – no account needed to try.',
   },
 
   // Für jede Generation
@@ -280,8 +280,8 @@ export const DICTIONARY = {
   },
   'camp1.f3.title': { de: 'Dein Tempo', en: 'Your pace' },
   'camp1.f3.text': {
-    de: 'Leicht, Mittel und Schwer bestimmen Zeit und Herzen. Die Level 1–2 sind gratis.',
-    en: 'Easy, Medium and Hard set the time and the hearts. Levels 1–2 are free.',
+    de: 'Leicht, Mittel und Schwer bestimmen Zeit und Herzen. Die Level 1–6 sind gratis.',
+    en: 'Easy, Medium and Hard set the time and the hearts. Levels 1–6 are free.',
   },
 
   // Campaign II: facts from static/game/campaign2 (40 levels, eight acts, boss rounds, four answers, timer 1.2x-2x)
@@ -337,8 +337,8 @@ export const DICTIONARY = {
   'prices.kicker': { de: 'Preise', en: 'Pricing' },
   'prices.title': { de: 'Ein Modell für jeden Weg', en: 'A model for every route' },
   'prices.lead': {
-    de: 'Im Browser abonnierst du, in der App kaufst du jedes Abenteuer einzeln und einmalig. Abenteuer I startet mit Level 1–2 gratis.',
-    en: 'On the web you subscribe, in the app you buy each campaign separately, once. Campaign I starts with levels 1–2 for free.',
+    de: 'Im Browser abonnierst du, in der App kaufst du jedes Abenteuer einzeln und einmalig. Abenteuer I startet mit Level 1–6 gratis.',
+    en: 'On the web you subscribe, in the app you buy each campaign separately, once. Campaign I starts with levels 1–6 for free.',
   },
   'prices.web.tag': { de: 'Im Browser', en: 'In the browser' },
   'prices.web.name': { de: 'Web-Abo', en: 'Web subscription' },
@@ -349,8 +349,8 @@ export const DICTIONARY = {
     en: 'Taxes included · renews automatically · cancel anytime',
   },
   'prices.web.f1': {
-    de: 'Level 1–2 gratis, Premium schaltet Level 3–60 und Abenteuer II: Genie frei',
-    en: 'Levels 1–2 free, premium unlocks levels 3–60 and Campaign II: Genius',
+    de: 'Level 1–6 gratis, Premium schaltet Level 7–60 und Abenteuer II: Genie frei',
+    en: 'Levels 1–6 free, premium unlocks levels 7–60 and Campaign II: Genius',
   },
   'prices.web.f2': { de: 'Cloud-Konto mit synchronisiertem Fortschritt', en: 'Cloud account with synced progress' },
   'prices.web.f3': { de: 'Bestenliste inklusive', en: 'Leaderboard included' },
@@ -368,8 +368,8 @@ export const DICTIONARY = {
     en: 'Unlocked with one payment · no subscription, no renewal',
   },
   'prices.app.f1': {
-    de: 'Level 1–2 gratis zum Ausprobieren, dann einmal zahlen und Level 3–60, alle Heldenfarben und weitere Spieler freischalten',
-    en: 'Levels 1–2 free to try, then pay once to unlock levels 3–60, all hero themes and more players',
+    de: 'Level 1–6 gratis zum Ausprobieren, dann einmal zahlen und Level 7–60, alle Heldenfarben und weitere Spieler freischalten',
+    en: 'Levels 1–6 free to try, then pay once to unlock levels 7–60, all hero themes and more players',
   },
   'prices.app.f2': { de: 'Kein Konto nötig', en: 'No account required' },
   'prices.app.f3': {
@@ -396,7 +396,7 @@ export const DICTIONARY = {
     de: 'Einmalig freigeschaltet · kein Abo · Abenteuer I ist nicht nötig',
     en: 'Unlocked once · no subscription · Campaign I is not needed',
   },
-  'prices.c2.f1': { de: '40 Level mit Brüchen, Potenzen, Wurzeln und Logarithmen', en: '40 levels of fractions, powers, roots and logarithms' },
+  'prices.c2.f1': { de: '40 Level mit Brüchen, Potenzen, Wurzeln und Logarithmen – die ersten 3 gratis', en: '40 levels of fractions, powers, roots and logarithms – the first 3 free' },
   'prices.c2.f2': {
     de: 'Sofort spielbar: Abenteuer I musst du weder besitzen noch gespielt haben',
     en: 'Playable straight away: you need neither own nor have played Campaign I',
@@ -473,8 +473,8 @@ export const DICTIONARY = {
   'family.p2.text': { de: 'Spieler wechseln mit einem Tipp – ohne An- und Abmelden.', en: 'Switch player with a single tap – no signing in or out.' },
   'family.p3.title': { de: 'Geräteweit', en: 'Device-wide' },
   'family.p3.text': {
-    de: 'Ein Kauf auf dem Gerät schaltet Level 3–60 für alle Profile frei.',
-    en: 'One purchase on the device unlocks levels 3–60 for every profile.',
+    de: 'Ein Kauf auf dem Gerät schaltet Level 7–60 für alle Profile frei.',
+    en: 'One purchase on the device unlocks levels 7–60 for every profile.',
   },
   'family.p4.title': { de: 'Kein Konto, kein Login', en: 'No account, no login' },
   'family.p4.text': {
@@ -495,13 +495,13 @@ export const DICTIONARY = {
   },
   'faq.q2': { de: 'Was bekomme ich mit dem Einmalkauf?', en: 'What does the one-time purchase include?' },
   'faq.a2': {
-    de: 'Für 2,99 EUR einmalig schaltest du in der App Abenteuer I frei: Level 3–60, alle Heldenfarben und weitere Spieler – ohne Abo. Der Kauf gilt geräteweit für alle Profile auf diesem Gerät; bei einer Erstattung entfällt der Zugang. Abenteuer II: Genie ist ein eigener Einmalkauf für 1,99 EUR.',
-    en: 'For a one-time EUR 2.99 you unlock Campaign I in the app: levels 3–60, all hero themes and more players – no subscription. The purchase is device-wide and covers every profile on that device; a refund ends the entitlement. Campaign II: Genius is its own one-time purchase for EUR 1.99.',
+    de: 'Für 2,99 EUR einmalig schaltest du in der App Abenteuer I frei: Level 7–60, alle Heldenfarben und weitere Spieler – ohne Abo. Der Kauf gilt geräteweit für alle Profile auf diesem Gerät; bei einer Erstattung entfällt der Zugang. Abenteuer II: Genie ist ein eigener Einmalkauf für 1,99 EUR.',
+    en: 'For a one-time EUR 2.99 you unlock Campaign I in the app: levels 7–60, all hero themes and more players – no subscription. The purchase is device-wide and covers every profile on that device; a refund ends the entitlement. Campaign II: Genius is its own one-time purchase for EUR 1.99.',
   },
   'faq.q3': { de: 'Muss ich zahlen, um es auszuprobieren?', en: 'Do I have to pay to try it?' },
   'faq.a3': {
-    de: 'Nein. Level 1–2 sind gratis – im Web und in der App.',
-    en: 'No. Levels 1–2 are free – both on the web and in the app.',
+    de: 'Nein. Level 1–6 sind gratis – im Web und in der App.',
+    en: 'No. Levels 1–6 are free – both on the web and in the app.',
   },
   'faq.q4': { de: 'Funktioniert die App offline?', en: 'Does the app work offline?' },
   'faq.a4': {
@@ -510,8 +510,8 @@ export const DICTIONARY = {
   },
   'faq.q5': { de: 'Was passiert, wenn ich das Web-Abo kündige?', en: 'What happens if I cancel the web subscription?' },
   'faq.a5': {
-    de: 'Du kündigst jederzeit; das Abo läuft bis zum Ende des bezahlten Zeitraums weiter. Danach bleiben Level 1–2 spielbar.',
-    en: 'You can cancel anytime; the subscription runs until the end of the paid period. After that, levels 1–2 remain playable.',
+    de: 'Du kündigst jederzeit; das Abo läuft bis zum Ende des bezahlten Zeitraums weiter. Danach bleiben Level 1–6 spielbar.',
+    en: 'You can cancel anytime; the subscription runs until the end of the paid period. After that, levels 1–6 remain playable.',
   },
   'faq.q6': { de: 'Welche Sprachen gibt es?', en: 'Which languages are available?' },
   'faq.a6': { de: 'Das Spiel gibt es auf Deutsch und Englisch – diese Website ebenfalls.', en: 'The game is available in German and English – and so is this website.' },

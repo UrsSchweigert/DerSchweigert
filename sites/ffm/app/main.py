@@ -54,7 +54,7 @@ def get_level(level_num):
     cfg = levels.get_level_config(level_num)
     if not cfg:
         return jsonify(error='level_not_found'), 404
-    if level_num > 2 and current_app.config['ACCESS_CONTROL_ENABLED']:
+    if level_num > entitlements.FREE_LEVELS and current_app.config['ACCESS_CONTROL_ENABLED']:
         username = require_auth() if request.headers.get('Authorization') else None
         allowed, code, status = entitlements.require_level_access(username, level_num)
         if not allowed:
