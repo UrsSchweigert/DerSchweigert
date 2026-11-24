@@ -78,7 +78,7 @@ test('the title shows the Campaign II picture only while it is chosen, and it le
 test('the switch names the campaign being played, with dragons and in the menu colours', () => {
   assert.match(html, /id="genius-title" data-i18n="campaign\.switch\.title1">Arithmetic</);
   assert.equal((html.match(/class="campaign-switch-dragon/g) ?? []).length, 4, 'two dragons on the switch, two on the picture');
-  for (const key of ['eyebrow1', 'eyebrow2', 'title1', 'title2', 'toGenius', 'toArithmetic', 'unlock']) {
+  for (const key of ['eyebrow1', 'eyebrow2', 'title1', 'title2', 'toGenius', 'toArithmetic', 'try']) {
     assert.match(i18n, new RegExp(`'campaign\\.switch\\.${key}': \\{ en: '[^']+', de: '[^']+' \\}`), key);
   }
   assert.match(i18n, /'campaign\.switch\.title1': \{ en: 'Arithmetic',/);
@@ -217,4 +217,11 @@ test('the title names the Genius difficulties and drops Shapes in Campaign II', 
   assert.match(main, /if \(level === 'shapes'\) \{ btn\.hidden = inGenius; continue; \}/);
   assert.match(main, /\n  renderTitleDifficulties\(\);\n/, 'runs from renderCampaignSwitch, so every campaign change updates the title');
   assert.match(css, /\.splash-diff-btn\[hidden\]\s*\{\s*display:\s*none/, 'hidden must beat display:flex');
+});
+
+test('the first free Campaign II levels open without the subscription or purchase', () => {
+  assert.match(main, /FREE_LEVELS_2/, 'main.js names the free Genius levels');
+  const gate = main.slice(main.indexOf('async function getCampaign2Config'), main.indexOf('async function getCampaign2Config') + 700);
+  assert.ok(gate.indexOf('FREE_LEVELS_2') < gate.indexOf('getCampaign2AccessNow'), 'the free check comes before the access check');
+  assert.match(i18n, /'campaign\.switch\.try'/, 'a player without access is invited to try Genius, not told to unlock it');
 });

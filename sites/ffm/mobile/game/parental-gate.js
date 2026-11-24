@@ -2,8 +2,8 @@
 //
 // StoreKit and Google Play require a parental gate before a purchase, a
 // restore or a link that leaves the app. The gate is deliberately not an
-// arithmetic exercise from the game itself: levels 1-2 only add numbers up
-// to 12, while this challenge multiplies two operands between 6 and 12
+// arithmetic exercise from the game itself: levels 1-6 only add numbers up
+// to 24, while this challenge multiplies two operands between 6 and 12
 // (products 36-144) and spells both operands out in words. A child who can
 // read the digits therefore still has to read and multiply.
 //

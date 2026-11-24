@@ -118,7 +118,7 @@ The unlock behaves differently per platform, so the tracks explain it
 separately:
 
 - **iOS** — the beta access is over. The track's "Vollversion nach der Beta"
-  box states the normal App Store one-time purchase (levels 1–2 free, no
+  box states the normal App Store one-time purchase (levels 1–6 free, no
   subscription).
 - **Android** — while the beta runs, the unlock is free through a **Google Play
   promo code** for the `arithmoslayer_full_unlock` product; testers request it

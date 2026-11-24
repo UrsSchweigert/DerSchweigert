@@ -2,7 +2,7 @@
 
 import {
   BOSS_ROUND_HITS, MISSING_OPERAND_BONUS, bossRoundKinds, generateProblem, getArithmeticOptionCount,
-  isBossRoundLevel, revealQuestion, sampleFiendType, TOTAL_LEVELS,
+  FREE_LEVELS, FREE_LEVELS_2, isBossRoundLevel, revealQuestion, sampleFiendType, TOTAL_LEVELS,
 } from './levels.js';
 import { Renderer, CANVAS_W, CANVAS_H, GROUND_Y, LOGICAL_PX, HERO_X } from './renderer.js';
 import { LEVEL_ART_MANIFEST, resolveLevelBackground, stageArtUrl } from './level-art.js';
@@ -598,6 +598,8 @@ async function getCampaign2AccessNow() {
   return campaign2Access({ platform: 'web', premiumAccess: premium });
 }
 async function getCampaign2Config(levelIndex) {
+  // The first FREE_LEVELS_2 levels are a free taste; the generator is client-side, so nothing is fetched.
+  if (levelIndex < FREE_LEVELS_2) return getCampaign2LevelConfig(levelIndex + 1);
   const access = await getCampaign2AccessNow();
   if (!access.granted) {
     const error = new Error('Campaign 2 is locked');
@@ -2252,7 +2254,7 @@ async function renderCampaignSwitch() {
     };
     set('genius-eyebrow', inTwo ? 'campaign.switch.eyebrow2' : 'campaign.switch.eyebrow1');
     set('genius-title', inTwo ? 'campaign.switch.title2' : 'campaign.switch.title1');
-    set('genius-status', inTwo ? 'campaign.switch.toArithmetic' : access.granted ? 'campaign.switch.toGenius' : 'campaign.switch.unlock');
+    set('genius-status', inTwo ? 'campaign.switch.toArithmetic' : access.granted ? 'campaign.switch.toGenius' : 'campaign.switch.try');
     button.setAttribute('aria-pressed', String(inTwo));
     button.dataset.campaign = String(selectedCampaign);
     // The dragon pair belongs to the campaign the button names: young for I, ancient for II.
@@ -2300,15 +2302,10 @@ document.getElementById('genius-campaign-btn')?.addEventListener('click', async 
   if (levelStarting || pendingSkillIntro) return;
   if (selectedCampaign === 2) {
     chooseCampaign(1);
-  } else if ((await getCampaign2AccessNow()).granted) {
-    chooseCampaign(2);
-  } else if (platform.isApp) {
-    openCampaign2Purchase();            // the in-app purchase
-  } else if (platform.isLoggedIn) {
-    openBillingPanel();                 // the subscription
   } else {
-    showAuthForm(loginForm);            // log in (or register) first
-    setAuthModalVisible(true);
+    // Everyone may enter: the first FREE_LEVELS_2 levels are free, and the first locked level
+    // opens the purchase (handleLevelConfigError), so the way to buy stays one step away.
+    chooseCampaign(2);
   }
   renderCampaignSwitch();
 });
@@ -3309,7 +3306,7 @@ function handleLevelConfigError(err, levelIndex) {
     showTitlePage('progress');
   }
 
-  if (!isPractice && [401, 402, 403].includes(err.statusCode) && level > 2) {
+  if (!isPractice && [401, 402, 403].includes(err.statusCode) && level > FREE_LEVELS) {
     savePendingRecord(levelIndex, state.score, state.difficulty, state.timerMax, state.maxHearts);
   }
   if (err.code === 'entitlement_required' && platform.isApp) {
@@ -3332,8 +3329,8 @@ function handleLevelConfigError(err, levelIndex) {
     setAuthModalVisible(true);
   } else if (err.statusCode === 402) {
     message = t('auth.subscriptionRequired');
-    // Save pending record for L3+ so user can resume after purchasing
-    if (!isPractice && level > 2) {
+    // Save pending record for the first paid level onward so user can resume after purchasing
+    if (!isPractice && level > FREE_LEVELS) {
       savePendingRecord(levelIndex, state.score, state.difficulty, state.timerMax, state.maxHearts);
     }
     // Show account modal with billing tab

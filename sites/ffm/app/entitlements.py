@@ -8,6 +8,11 @@ from . import billing_store, models
 from .models import _parse_timestamp
 
 
+# Campaign I levels anyone may play without an entitlement. Keep equal to FREE_LEVELS in
+# static/game/levels.js and mobile/game/platform-adapter.js (tests check all three).
+FREE_LEVELS = 6
+
+
 def _now_utc():
     return datetime.now(timezone.utc).isoformat()
 
@@ -71,7 +76,7 @@ def get_access_status(username=None, app_config=None):
 
 def require_level_access(username, level, app_config=None):
     status = get_access_status(username, app_config)
-    if level <= 2 or not status['access_control_enabled'] or status['premium_access']:
+    if level <= FREE_LEVELS or not status['access_control_enabled'] or status['premium_access']:
         return True, None, status
     if not username:
         return False, 401, status

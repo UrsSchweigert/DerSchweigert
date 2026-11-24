@@ -52,9 +52,14 @@ export class PlatformUnavailableError extends Error {
   }
 }
 
-// Mirrors LevelConfig[0..1] in sites/ffm/static/game/levels.js; platform.test.js
-// fails if the two drift apart. Levels 3-60 stay locked until a store
-// entitlement exists.
+// Campaign I levels playable without a store entitlement. Keep equal to FREE_LEVELS in
+// static/game/levels.js and app/entitlements.py (platform.test.js checks the web one).
+export const FREE_LEVEL_COUNT = 6;
+
+// Levels 1-2 are inlined so the first launch never waits on the bundle. Mirrors
+// LevelConfig[0..1] in sites/ffm/static/game/levels.js; platform.test.js fails if the
+// two drift apart. Levels 3-6 come from the generated bundle like the paid ones, just
+// without the entitlement check; 7-60 stay locked until a store entitlement exists.
 const FREE_LEVELS = Object.freeze([
   { level: 1, chapter: 1, chapterName: 'Grade 1 Foundations', operations: ['+'],
     operandRange: { a: [1, 3], b: [1, 3] }, maxResult: 6,
@@ -112,15 +117,16 @@ const platform = {
   username: null,
   localProfiles,
 
-  // Levels 1-2 are always free. Every other level needs the cached store
-  // entitlement and, once entitled, its generated config. includeBaseline
+  // Levels 1-6 are always free (1-2 inlined, 3-6 from the bundle). Every other level
+  // needs the cached store entitlement and, once entitled, its generated config. includeBaseline
   // stays unsupported: local continuation/replay starts a fresh score and
   // main.js ignores server-style baseline_score in native campaigns.
   async getAuthorizedLevelConfig(levelIndex) {
     if (Number.isInteger(levelIndex) && levelIndex >= 0 && levelIndex < FREE_LEVELS.length) {
       return FREE_LEVELS[levelIndex];
     }
-    if (!(await entitlement.getStatus()).premium_access) {
+    const isFree = Number.isInteger(levelIndex) && levelIndex >= 0 && levelIndex < FREE_LEVEL_COUNT;
+    if (!isFree && !(await entitlement.getStatus()).premium_access) {
       const error = new PlatformUnavailableError(`Level ${levelIndex + 1} requires an entitlement`);
       error.code = 'entitlement_required';
       error.statusCode = 402;

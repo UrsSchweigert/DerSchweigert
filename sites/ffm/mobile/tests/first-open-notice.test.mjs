@@ -83,26 +83,26 @@ function notice({ platform = fakePlatform(), backend = createBackend(), view = f
 test('notice copy is short, kind and never implies a subscription or a purchase', () => {
   setLocale('en', { persist: false });
   const english = buildNoticeMarkup({
-    locale: 'en', translate: t, freeCount: 2, totalLevels: 60, practiceKinds: PRACTICE_KINDS,
+    locale: 'en', translate: t, freeCount: 6, totalLevels: 60, practiceKinds: PRACTICE_KINDS,
   });
   setLocale('de', { persist: false });
   const german = buildNoticeMarkup({
-    locale: 'de', translate: t, freeCount: 2, totalLevels: 60, practiceKinds: PRACTICE_KINDS,
+    locale: 'de', translate: t, freeCount: 6, totalLevels: 60, practiceKinds: PRACTICE_KINDS,
   });
 
   assert.match(english, /Thank you!/);
   assert.match(english, /Thank you for trying Arithmo Slayer\./);
   assert.match(english, /Mental arithmetic as brain training – at your own pace\./);
   assert.match(english, /Just give it a try/);
-  assert.match(english, /Levels 1–2 are free to play\./);
-  assert.match(english, /unlocks levels 3–60 and all hero themes – no subscription, no recurring charges/);
+  assert.match(english, /Levels 1–6 are free to play\./);
+  assert.match(english, /unlocks levels 7–60 and all hero themes – no subscription, no recurring charges/);
   assert.match(english, /Continue/);
   assert.match(german, /Danke!/);
   assert.match(german, /Danke, dass du Arithmo Slayer ausprobierst\./);
   assert.match(german, /Kopfrechnen als Gehirntraining – im eigenen Tempo\./);
   assert.match(german, /Probier es einfach aus/);
-  assert.match(german, /Level 1–2 sind kostenlos spielbar\./);
-  assert.match(german, /Level 3–60 und alle Heldenfarben frei – ohne Abo, ohne laufende Kosten/);
+  assert.match(german, /Level 1–6 sind kostenlos spielbar\./);
+  assert.match(german, /Level 7–60 und alle Heldenfarben frei – ohne Abo, ohne laufende Kosten/);
   assert.match(german, /Weiter/);
 
   for (const text of [english, german]) {

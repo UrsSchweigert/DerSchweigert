@@ -38,7 +38,7 @@ FÜR DIE GANZE FAMILIE GEBAUT
 Eigene lokale Profile auf dem Gerät, jedes mit eigenem Namen, eigenen Scores und eigenen Level-Checkpoints. Der Spielerwechsel ist ein Tipp auf dem Titelbildschirm. Keine Anmeldung, kein Konto, kein Chat, keine Werbung, keine Analyse, kein Tracking.
 
 EINMAL ZAHLEN
-Die App ist ein Einmalkauf und schaltet Level 3–60 für alle Profile auf dem Gerät frei. Kein Abo, keine Verlängerung, keine virtuelle Währung. Level 1–2 sind gratis zum Ausprobieren. Das Spiel läuft komplett offline – nur Kauf und Wiederherstellung brauchen eine Verbindung.
+Die App ist ein Einmalkauf und schaltet Level 7–60 für alle Profile auf dem Gerät frei. Kein Abo, keine Verlängerung, keine virtuelle Währung. Level 1–6 sind gratis zum Ausprobieren. Das Spiel läuft komplett offline – nur Kauf und Wiederherstellung brauchen eine Verbindung.
 
 DATENSCHUTZ
 Kein Konto, kein Tracking. Die Datenschutzerklärung ist in der App gebündelt und unten verlinkt.
@@ -99,7 +99,7 @@ Instagram / Facebook:
 >
 > • Formen-Modus für den Kindergarten, Easy bis Hard für den Rest der Familie
 > • Ein lokales Profil pro Person, kein Konto, keine Werbung, kein Tracking
-> • Einmalkauf, Level 3–60 für das ganze Gerät
+> • Einmalkauf, Level 7–60 für das ganze Gerät
 >
 > Deutsch und Englisch. Link in der Bio.
 
@@ -122,9 +122,9 @@ Faktenblatt:
 | Punkt | Wert |
 | --- | --- |
 | Plattformen | iPhone (App Store), Browser, Android in offener Beta |
-| iOS-Preis | 2,99 EUR einmalig, schaltet Level 3–60 frei |
+| iOS-Preis | 2,99 EUR einmalig, schaltet Level 7–60 frei |
 | Browser-Preis | 1,99 EUR alle 3 Monate |
-| Gratis | Level 1–2 |
+| Gratis | Level 1–6 |
 | Level / Akte | 60 Level, 6 Akte, 36 Feinde, 1 Drache |
 | Modi | Formen, Easy, Medium, Hard |
 | Sprachen | Deutsch, Englisch |

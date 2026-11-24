@@ -137,7 +137,7 @@ game shell `static/index.html` (inside `app-omit`, so the apps never carry it, a
   so `/beta/` reuses the same storage key, detection and `translateDom()`
   instead of copying them. It throws on a duplicate key, and it has to run at
   import time — `boot()` waits for `DOMContentLoaded` for exactly that reason.
-* `splitRanges()` rebuilds the `Level 1–2` guard on every runtime translation:
+* `splitRanges()` rebuilds the `Level 1–6` guard on every runtime translation:
   numeric ranges are written back into `<span class="nb">`, so German never
   breaks after the en dash even though `textContent` is replaced.
 

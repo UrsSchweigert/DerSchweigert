@@ -75,7 +75,7 @@ test('the manual content matches the settled campaign, dragon, score and trainin
   const english = await readManual('en');
   for (const pattern of [
     /60 levels in four chapters/,
-    /Levels 1–2 are free/,
+    /Levels 1–6 are free/,
     /15 seconds per question/,
     /nine seconds/,
     /combo 21/,
@@ -93,7 +93,7 @@ test('the manual content matches the settled campaign, dragon, score and trainin
   const german = await readManual('de');
   for (const pattern of [
     /60 Level in vier Kapiteln/,
-    /Level 1–2 sind kostenlos/,
+    /Level 1–6 sind kostenlos/,
     /15 Sekunden pro Frage/,
     /neun Sekunden/,
     /Drache bei 21\./,

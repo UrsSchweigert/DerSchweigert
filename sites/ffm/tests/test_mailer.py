@@ -295,8 +295,8 @@ def test_cancel_request_ack_email_still_rejects_unknown_outcomes_regardless_of_l
 # ============ Registration/welcome email manual: key product facts ============
 #
 # A read-only audit of the embedded welcome-email "quick manual" found it
-# was missing several player-facing facts (free levels 1-2 vs. paid
-# 3-60, subscription price/cadence/auto-renew, where to redeem a gift
+# was missing several player-facing facts (free levels 1-6 vs. paid
+# 7-60, subscription price/cadence/auto-renew, where to redeem a gift
 # code, the adult-account/child-use policy, and that a password change
 # revokes other sessions) and that it miscalculated the leaderboard
 # window (the backend deliberately does NOT filter by recency — see
@@ -314,8 +314,8 @@ from sites.ffm.app import legal_texts
 def test_verification_email_manual_states_correct_free_vs_paid_level_boundary(monkeypatch):
     sent = _capture(monkeypatch)
     mailer.send_verification_email('user@example.com', 'alice', 'tok123')
-    assert 'Levels 1-2 are free forever' in sent['body_text']
-    assert 'levels 3-60 need a Premium subscription' in sent['body_text']
+    assert 'Levels 1-6 are free forever' in sent['body_text']
+    assert 'levels 7-60 need a Premium subscription' in sent['body_text']
 
 
 def test_verification_email_manual_price_matches_legal_texts_constants_en(monkeypatch):
@@ -428,13 +428,14 @@ def test_verification_email_manual_does_not_duplicate_full_legal_declarations():
 
 
 def test_email_boundary_matches_entitlements_free_level_cutoff():
-    """Cross-check against app/entitlements.py's actual gate (level <= 2 is
-    free) rather than merely hoping the email text and the real gate
+    """Cross-check against app/entitlements.py's actual gate (level <= FREE_LEVELS
+    is free) rather than merely hoping the email text and the real gate
     agree."""
     import inspect
     from sites.ffm.app import entitlements
     source = inspect.getsource(entitlements.require_level_access)
-    assert 'level <= 2' in source
+    assert 'level <= FREE_LEVELS' in source
+    assert entitlements.FREE_LEVELS == 6
 
 
 # ============ Android beta waitlist operator notification ============

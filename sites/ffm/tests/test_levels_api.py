@@ -90,15 +90,15 @@ def test_get_level_free_level_2(client):
 
 @pytest.mark.usefixtures('aws_mock')
 def test_get_level_premium_no_auth(client):
-    """GET /api/levels/3 without auth token, ACCESS_CONTROL_ENABLED=False should allow."""
-    response = client.get('/api/levels/3')
+    """GET /api/levels/7 without auth token, ACCESS_CONTROL_ENABLED=False should allow."""
+    response = client.get('/api/levels/7')
     assert response.status_code == 200
     data = response.get_json()
-    assert data['level'] == 3
+    assert data['level'] == 7
 
 
 def test_get_level_premium_with_auth_control_enabled(client, app):
-    """GET /api/levels/3 with ACCESS_CONTROL_ENABLED=True and valid JWT should return level."""
+    """GET /api/levels/7 with ACCESS_CONTROL_ENABLED=True and valid JWT should return level."""
     app.config['ACCESS_CONTROL_ENABLED'] = True
 
     # Register and login to get a valid JWT token
@@ -118,21 +118,21 @@ def test_get_level_premium_with_auth_control_enabled(client, app):
                 status='active'
             )
 
-    response = client.get('/api/levels/3', headers=headers)
+    response = client.get('/api/levels/7', headers=headers)
     assert response.status_code == 200
     data = response.get_json()
-    assert data['level'] == 3
+    assert data['level'] == 7
 
 
 def test_get_level_premium_no_auth_control_enabled(client, app):
-    """GET /api/levels/3 without auth token, ACCESS_CONTROL_ENABLED=True should return 401."""
+    """GET /api/levels/7 without auth token, ACCESS_CONTROL_ENABLED=True should return 401."""
     app.config['ACCESS_CONTROL_ENABLED'] = True
-    response = client.get('/api/levels/3')
+    response = client.get('/api/levels/7')
     assert response.status_code in [401, 403, 402]
 
 
 def test_get_level_unverified_user(client, app):
-    """GET /api/levels/3 with unverified user should return 403."""
+    """GET /api/levels/7 with unverified user should return 403."""
     app.config['ACCESS_CONTROL_ENABLED'] = True
 
     # Register but don't verify
@@ -147,14 +147,23 @@ def test_get_level_unverified_user(client, app):
 
 
 def test_get_level_unpaid_user(client, app):
-    """GET /api/levels/3 with verified but unpaid user should return 402."""
+    """GET /api/levels/7 with verified but unpaid user should return 402."""
     app.config['ACCESS_CONTROL_ENABLED'] = True
 
     # Register and login
     headers = register_and_login(client, 'unpaid', 'unpaid@example.com', 'TestPass123!')
 
-    response = client.get('/api/levels/3', headers=headers)
+    response = client.get('/api/levels/7', headers=headers)
     assert response.status_code == 402
+
+
+def test_free_levels_3_to_6_need_no_auth_even_with_access_control(client, app):
+    """Campaign I opens six levels: 3-6 come from the API but stay anonymous."""
+    app.config['ACCESS_CONTROL_ENABLED'] = True
+    for level in (3, 4, 5, 6):
+        response = client.get(f'/api/levels/{level}')
+        assert response.status_code == 200, level
+        assert response.get_json()['level'] == level
 
 
 def test_get_level_invalid_level_number(client):

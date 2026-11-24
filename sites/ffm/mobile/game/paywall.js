@@ -1,6 +1,6 @@
 // paywall.js — Bilingual, gated paywall for the app build.
 //
-// Levels 3-60 are one non-consumable in-app purchase; there is no web
+// Levels 7-60 are one non-consumable in-app purchase; there is no web
 // registration or Stripe checkout in the app. ./purchase.js owns the store
 // calls and the parental gate, and every buy and restore runs that gate first.
 // The markup builder is DOM-free and the view/gate are injectable for tests.
@@ -15,8 +15,8 @@ import { CAMPAIGN2_PRODUCT_ID } from './purchase.js';
 import { DEFAULT_LOCALE, resolveLocale } from './parental-gate.js';
 
 export const STRINGS = Object.freeze({
-  'paywall.title': { en: 'Unlock levels 3-60', de: 'Level 3–60 freischalten' },
-  'paywall.description': { en: 'One purchase unlocks every level and all hero themes. Levels 1-2 stay free.', de: 'Ein Kauf schaltet alle Level und alle Heldenfarben frei. Level 1–2 bleiben kostenlos.' },
+  'paywall.title': { en: 'Unlock levels 7-60', de: 'Level 7–60 freischalten' },
+  'paywall.description': { en: 'One purchase unlocks every level and all hero themes. Levels 1-6 stay free.', de: 'Ein Kauf schaltet alle Level und alle Heldenfarben frei. Level 1–6 bleiben kostenlos.' },
   'paywall.buy': { en: 'Buy for {price}', de: 'Für {price} kaufen' },
   'paywall.buyNoPrice': { en: 'Buy full unlock', de: 'Vollversion kaufen' },
   'paywall.restore': { en: 'Restore purchase', de: 'Kauf wiederherstellen' },

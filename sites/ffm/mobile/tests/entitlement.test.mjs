@@ -3,7 +3,7 @@
 // The store cannot run in the Linux checker, so getPurchases is a fake that
 // returns canned transactions and the backend is a Map-backed Preferences
 // stand-in. The tests pin the cache contract: a purchase grants, a refund
-// revokes, an offline launch keeps the cache, and levels 3-60 stay locked
+// revokes, an offline launch keeps the cache, and levels 7-60 stay locked
 // behind the 402-equivalent error until the cache says otherwise.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -107,13 +107,21 @@ test('offline refresh keeps the cache instead of revoking it', async () => {
   assert.equal((await store.getStatus()).premium_access, true);
 });
 
-test('levels 1-2 are free and 3-60 return the 402 paywall error until entitled', async () => {
+test('levels 1-6 are free and 7-60 return the 402 paywall error until entitled', async () => {
   fakeStore.items = [];
   await platform.refreshEntitlement();
   assert.equal((await platform.getAuthorizedLevelConfig(0)).level, 1);
   assert.equal((await platform.getAuthorizedLevelConfig(1)).level, 2);
+  // Levels 3-6 are free too; only the generated bundle carries their config, so a test run
+  // without it answers 404 (never the paywall).
+  for (const index of [2, 5]) {
+    await assert.rejects(
+      platform.getAuthorizedLevelConfig(index),
+      (error) => error.statusCode === 404 && error.code !== 'entitlement_required',
+    );
+  }
   await assert.rejects(
-    platform.getAuthorizedLevelConfig(2),
+    platform.getAuthorizedLevelConfig(6),
     (error) => error.code === 'entitlement_required' && error.statusCode === 402,
   );
   assert.equal((await platform.getBillingStatus()).premium_access, false);
@@ -124,7 +132,7 @@ test('levels 1-2 are free and 3-60 return the 402 paywall error until entitled',
   assert.equal((await platform.getBillingStatus()).premium_access, true);
   // The gate is open; only the generated bundle carries the level config.
   await assert.rejects(
-    platform.getAuthorizedLevelConfig(2),
+    platform.getAuthorizedLevelConfig(6),
     (error) => error.statusCode === 404 && error.code !== 'entitlement_required',
   );
 });

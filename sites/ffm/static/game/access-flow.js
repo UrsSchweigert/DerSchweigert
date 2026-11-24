@@ -43,8 +43,8 @@ export async function readApiJson(res) {
 
 /**
  * Fetch the level configuration for a specific level (1-60).
- * For levels 1-2 (free), returns config without calling backend.
- * For levels 3-60 (premium), requires authorization and calls backend.
+ * Levels 1-2 ship in the bundle and need no backend call. Levels 3-6 are free as well but
+ * come from the backend, which grants them without a login; 7-60 need premium authorization.
  *
  * @param {number} levelIndex - 0-based level index
  * @param {object} api - API client with _fetch method
@@ -55,7 +55,7 @@ export async function readApiJson(res) {
 export async function getAuthorizedLevelConfig(levelIndex, api, includeBaseline = false) {
   const level = levelIndex + 1;
 
-  // Level 1-2 are free — return from LevelConfig directly
+  // Levels 1-2 are bundled — return from LevelConfig directly
   if (level <= 2) {
     const { LevelConfig } = await import('./levels.js');
     const cfg = LevelConfig[levelIndex];
@@ -71,7 +71,7 @@ export async function getAuthorizedLevelConfig(levelIndex, api, includeBaseline 
     return cfg;
   }
 
-  // Levels 3-60 require premium authorization
+  // Levels 3+ come from the backend (free ones answer anonymously, the rest check entitlement)
   const params = new URLSearchParams();
   if (includeBaseline) params.append('include_baseline', '1');
 
