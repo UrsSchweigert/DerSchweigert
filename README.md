@@ -232,7 +232,7 @@ Always run `plan` after adding `moved` blocks and confirm no unexpected
   `aws iam get-policy-version --policy-arn arn:aws:iam::113725432218:policy/landhauscheck-deploy-scope --version-id <id>`;
   it has the same 5-version cap and the same absence of drift checking, so a
   new resource type in the landhauscheck stack needs the same manual grant.
-- **No PIN lock or API**: derschweigert.de is a static S3 + CloudFront site. The optional PIN gate, the `/unlock` and `/api/admin/verify-pin` endpoints, the contact form and the Lambda/API Gateway behind them were retired on 2026-11-18. The viewer-request CloudFront Function only rewrites `/impressum`, `/datenschutz` and `/nutzungsbedingungen` to their `.html` objects. Contact links in templates use `mailto:info@derschweigert.de`.
+- **No PIN lock or API**: derschweigert.de is a static S3 + CloudFront site. The optional PIN gate, the `/unlock` and `/api/admin/verify-pin` endpoints, the contact form and the Lambda/API Gateway behind them were retired on 2026-11-18. The viewer-request CloudFront Function rewrites an exact-match list of extensionless URLs (`/impressum`, `/datenschutz`, `/nutzungsbedingungen`, `/ovara`, `/cupmark`, `/cupmark/en`) to their `.html` objects; a page added below `templates/` needs its route added to that list in `infra/terraform/sites/derschweigert/main.tf` and to `sites/derschweigert/app/main.py` for local preview, or it 403s from S3. Contact links in templates use `mailto:info@derschweigert.de`.
 - **Security response headers**: the shared `static_site` module
   (`infra/terraform/modules/static_site/main.tf`) provisions a CloudFront
   response-headers policy (CSP, HSTS, X-Frame-Options, nosniff,

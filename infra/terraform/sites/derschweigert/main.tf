@@ -41,16 +41,18 @@ locals {
     Domain    = local.domain
   }
 
-  # Viewer-request function for the default behavior. The legal pages and the /ovara page are
-  # uploaded to S3 as HTML files; this rewrites their public, extensionless URLs
-  # so the S3 origin resolves the object instead of 403-ing on a missing key.
+  # Viewer-request function for the default behavior. The legal pages, the /ovara page and the
+  # /cupmark pages are uploaded to S3 as HTML files; this rewrites their public, extensionless
+  # URLs so the S3 origin resolves the object instead of 403-ing on a missing key. The list is
+  # exact-match on purpose: a prefix match would also rewrite paths that have no object.
   # (Until 2026-11-18 it also carried a PIN gate and a /contact 410; both were
   # retired with the contact/admin API.)
   viewer_request_function_code = <<-EOF
   function handler(event) {
     var request = event.request;
     var uri = request.uri || '/';
-    if (uri === '/impressum' || uri === '/datenschutz' || uri === '/nutzungsbedingungen' || uri === '/ovara') {
+    var html_pages = ['/impressum', '/datenschutz', '/nutzungsbedingungen', '/ovara', '/cupmark', '/cupmark/en'];
+    if (html_pages.indexOf(uri) !== -1) {
       request.uri = uri + '.html';
     }
     return request;

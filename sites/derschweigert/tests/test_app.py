@@ -75,6 +75,54 @@ def test_nutzungsbedingungen_is_publicly_accessible_in_production():
     assert "ffm.derschweigert.de/terms.html" in response.text
 
 
+def test_cupmark_pages_carry_operator_and_both_legal_sections():
+    # The Cupmark app links here from the App Store, so the page itself has to name
+    # the operator and hold the app's privacy policy and terms, in both languages.
+    for path, lang in (("/cupmark", "de"), ("/cupmark/en", "en")):
+        response = client.get(path, follow_redirects=False)
+        assert response.status_code == 200, path
+        html = response.text
+        assert f'<html lang="{lang}">' in html
+        assert "Cupmark" in html
+        assert "Urs Schweigert" in html
+        assert "Am Sonnenhang 12" in html
+        assert 'id="privacy"' in html or 'id="datenschutz"' in html
+        assert 'id="terms"' in html or 'id="bedingungen"' in html
+        # The shared terms stay the framework; the page adds only what is app-specific.
+        assert 'href="/nutzungsbedingungen"' in html
+        assert 'href="/impressum"' in html
+        assert 'hreflang="en"' in html and 'hreflang="de"' in html
+
+
+def test_cupmark_pages_lead_with_the_community_and_state_the_free_promise():
+    # Community data and the six-month promise are the reasons to join now; both are
+    # commitments made to readers, so they are pinned here in each language.
+    expectations = {
+        "/cupmark": ("id=\"community\"", "id=\"roester\"", "id=\"kauf\"", "id=\"faq\"", "sechs Monate", "Screenshot folgt", "27. November 2026", 'id="einblick"'),
+        "/cupmark/en": ("id=\"community\"", "id=\"roasters\"", "id=\"store\"", "id=\"faq\"", "six months", "Screenshot follows", "27 November 2026", 'id="inside"'),
+    }
+    for path, needles in expectations.items():
+        html = client.get(path, follow_redirects=False).text
+        for needle in needles:
+            assert needle in html, (path, needle)
+        # The legal texts are published, not marked as drafts; that notice lives with the owner now.
+        assert "Entwurf" not in html and "Draft" not in html
+        assert "/static/projects/cupmark/marble.jpg" in html
+        assert "/static/projects/cupmark/cafe-friends.jpg" in html
+
+
+def test_cupmark_pages_load_no_third_party_assets():
+    # The site's CSP is same-origin only (script-src 'self'), so any external asset
+    # would be blocked silently in the browser while looking fine in the source.
+    for path in ("/cupmark", "/cupmark/en"):
+        html = client.get(path, follow_redirects=False).text
+        assert 'src="http' not in html
+        assert "fonts.googleapis" not in html
+        parser = TagBalanceChecker()
+        parser.feed(html)
+        assert parser.check_balanced(), f"{path}: {parser.errors}"
+
+
 def test_ovara_page_has_support_and_terms():
     response = client.get("/ovara", follow_redirects=False)
     assert response.status_code == 200

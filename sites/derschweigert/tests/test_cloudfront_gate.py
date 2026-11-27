@@ -1,8 +1,9 @@
 """Test the CloudFront viewer-request function for www.derschweigert.de.
 
 The function is extracted from Terraform (infra/terraform/sites/derschweigert/main.tf)
-and run in Node.js. Since 2026-11-18 it only rewrites the extensionless legal-page
-URLs to their .html objects; the retired PIN gate and /contact 410 must not return.
+and run in Node.js. Since 2026-11-18 it only rewrites the extensionless URLs of pages
+that are uploaded as .html objects (legal pages, /ovara, /cupmark); the retired PIN gate
+and /contact 410 must not return.
 """
 
 import json
@@ -58,8 +59,13 @@ def test_ovara_page_is_rewritten_to_its_html_object():
     assert result["requestUri"] == "/ovara.html"
 
 
+def test_cupmark_pages_are_rewritten_to_their_html_objects():
+    results = run_function(["/cupmark", "/cupmark/en"])
+    assert [r["requestUri"] for r in results] == ["/cupmark.html", "/cupmark/en.html"]
+
+
 def test_every_other_path_passes_through_unchanged_without_a_gate():
-    paths = ["/", "/services/websites", "/static/app.js", "/unlock", "/contact", "/admin.html"]
+    paths = ["/", "/services/websites", "/static/app.js", "/unlock", "/contact", "/admin.html", "/cupmarkx"]
     for cookie in (None, "ams_pin=1"):
         results = run_function(paths, cookie)
         assert [r["requestUri"] for r in results] == paths

@@ -1,0 +1,578 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Cupmark | Kaffee, den viele schmecken</title>
+  <meta name="description" content="Cupmark ist eine iPhone-App für Specialty Coffee: Bohne scannen, Zubereitung festhalten, mit acht festen Kriterien bewerten – und ab fünf Personen entsteht aus allen Tassen ein ehrliches Geschmacksprofil." />
+  <meta name="theme-color" content="#F6EEE1" />
+  <meta property="og:type" content="website" />
+  <meta property="og:locale" content="de_DE" />
+  <meta property="og:title" content="Cupmark | Kaffee, den viele schmecken" />
+  <meta property="og:description" content="Scannen, brauen, bewerten – in Sekunden. Ab fünf Personen wird aus euren Tassen ein Geschmacksprofil für alle." />
+  <meta property="og:url" content="https://www.derschweigert.de/cupmark" />
+  <meta property="og:image" content="https://www.derschweigert.de/static/projects/cupmark/cafe-friends.jpg" />
+  <meta name="twitter:card" content="summary_large_image" />
+  <link rel="alternate" hreflang="de" href="https://www.derschweigert.de/cupmark" />
+  <link rel="alternate" hreflang="en" href="https://www.derschweigert.de/cupmark/en" />
+  <link rel="alternate" hreflang="x-default" href="https://www.derschweigert.de/cupmark" />
+  <link rel="icon" href="/static/favicon.svg" type="image/svg+xml" />
+  <link rel="stylesheet" href="/static/styles.css" />
+  <style>
+    /* Cupmark runs on the app icon palette: espresso #3E271B on cream #ECD6B8,
+       laid over a single large marble plate (cover, never tiled). */
+    body.cm-page {
+      --ink-950: #33211A;
+      --ink-900: #3E271B;
+      --panel: rgba(255, 252, 246, 0.9);
+      --panel-flat: #FBF5E9;
+      --ivory: #33211A;
+      --ivory-dim: #5A4233;
+      --muted: #8A705C;
+      --brass: #A25E33;
+      --brass-light: #C08050;
+      --brass-deep: #6B4428;
+      --line: rgba(62, 39, 27, 0.18);
+      --line-soft: rgba(62, 39, 27, 0.10);
+      background-color: #F6EEE1;
+      background-image: none;
+      color: var(--ivory);
+    }
+    body.cm-page::before {
+      content: "";
+      position: fixed;
+      inset: 0;
+      z-index: 0;
+      pointer-events: none;
+      opacity: 1;
+      background:
+        linear-gradient(180deg, rgba(250, 245, 236, 0.18), rgba(247, 239, 228, 0.30)),
+        url("/static/projects/cupmark/marble.jpg") center / cover no-repeat;
+    }
+    body.cm-page::after {
+      content: "";
+      position: fixed;
+      inset: 0;
+      z-index: 0;
+      pointer-events: none;
+      background: radial-gradient(1100px 620px at 50% -12%, rgba(255, 255, 255, 0.22), transparent 72%);
+    }
+    body.cm-page > header,
+    body.cm-page > main,
+    body.cm-page > footer { position: relative; z-index: 1; }
+    body.cm-page .navbar { background: rgba(248, 242, 232, 0.84); }
+    body.cm-page .card { background: var(--panel); border-color: var(--line); box-shadow: 0 28px 60px -46px rgba(62, 39, 27, 0.85); }
+    body.cm-page .doc-card { background: #FFFDF7; }
+    body.cm-page .btn-primary {
+      background-image: linear-gradient(rgba(52, 32, 21, 0.88), rgba(40, 24, 16, 0.92)), url("/static/projects/cupmark/crema.jpg");
+      background-size: cover, cover;
+      background-position: center, center;
+      color: #F6E7D2;
+      border-color: rgba(62, 39, 27, 0.55);
+      box-shadow: 0 20px 40px -26px rgba(62, 39, 27, 0.9);
+    }
+    body.cm-page .btn-primary:hover { box-shadow: 0 24px 46px -24px rgba(62, 39, 27, 0.95); }
+    body.cm-page .btn-secondary { border-color: rgba(62, 39, 27, 0.32); color: var(--ivory); }
+    body.cm-page .section-head p + p { margin-top: 12px; }
+    .cm-hero { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.02fr); gap: clamp(26px, 4vw, 52px); align-items: center; padding-top: clamp(18px, 3vw, 36px); }
+    .cm-mark { display: block; width: 76px; height: 76px; border-radius: 19px; border: 1px solid rgba(255, 255, 255, 0.7); box-shadow: 0 22px 44px -26px rgba(62, 39, 27, 0.8); margin-bottom: 20px; }
+    .cm-hero h1 { margin: 10px 0 14px; font-size: clamp(2.6rem, 6vw, 4.2rem); line-height: 0.98; }
+    .cm-hero .lead { color: var(--ivory-dim); max-width: 38ch; margin: 0 0 10px; }
+    .cm-hero .lead strong { color: var(--ivory); }
+    .cm-cta-row { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; margin: 24px 0 0; }
+    .cm-cta-row .btn { padding: 14px 22px; }
+    .cm-textlink { display: inline-flex; align-items: center; gap: 8px; font-family: var(--font-mono); font-size: 0.75rem; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; color: var(--brass-deep); border-bottom: 1px solid rgba(107, 68, 40, 0.35); padding-bottom: 3px; }
+    .cm-textlink:hover { color: var(--brass); border-color: var(--brass); }
+    .cm-btn-cup { width: 18px; height: 18px; flex: none; }
+    .cm-pending { opacity: 0.92; cursor: not-allowed; }
+    .cm-todo { display: inline-block; margin: 14px 0 0; padding: 6px 10px; border: 1px dashed var(--brass); border-radius: 8px; font-family: var(--font-mono); font-size: 0.7rem; letter-spacing: 0.06em; color: var(--brass-deep); background: rgba(255, 253, 247, 0.7); }
+    .cm-photo { display: block; width: 100%; height: auto; border-radius: 16px; border: 1px solid rgba(255, 255, 255, 0.75); box-shadow: 0 44px 80px -52px rgba(62, 39, 27, 0.95); }
+    .cm-split { display: grid; grid-template-columns: minmax(0, 1.15fr) minmax(0, 0.85fr); gap: clamp(22px, 3vw, 40px); align-items: start; }
+    .cm-cards { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; margin-top: 26px; }
+    .cm-cards .card { padding: clamp(18px, 2.4vw, 24px); }
+    .cm-cards h3 { margin: 0 0 8px; font-size: 1.08rem; }
+    .cm-cards p { margin: 0; color: var(--ivory-dim); font-size: 0.93rem; }
+    .cm-two { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 18px; margin-top: 24px; }
+    .cm-two .card { padding: clamp(20px, 3vw, 28px); }
+    .cm-two h3 { margin: 0 0 8px; font-size: 1.15rem; }
+    .cm-two p { margin: 0; color: var(--ivory-dim); font-size: 0.95rem; }
+    /* Listings use a small cup instead of a bullet. */
+    body.cm-page .list { gap: 14px; }
+    body.cm-page .list li { display: block; position: relative; padding-left: 34px; color: var(--ivory-dim); }
+    body.cm-page .list li::before {
+      content: "";
+      position: absolute;
+      left: 0;
+      top: 1px;
+      width: 21px;
+      height: 21px;
+      border: 0;
+      border-radius: 0;
+      background: currentColor;
+      opacity: 0.62;
+      -webkit-mask: url("/static/projects/cupmark/cup.svg") center / contain no-repeat;
+      mask: url("/static/projects/cupmark/cup.svg") center / contain no-repeat;
+    }
+    body.cm-page .chips li { background: rgba(255, 252, 246, 0.82); border: 1px solid var(--line); color: var(--ivory-dim); }
+    /* Tags get the same cup instead of the studio's dot, so no bullet survives the theme. */
+    body.cm-page .chips li::before {
+      width: 15px;
+      height: 15px;
+      border-radius: 0;
+      background: currentColor;
+      opacity: 0.55;
+      -webkit-mask: url("/static/projects/cupmark/cup.svg") center / contain no-repeat;
+      mask: url("/static/projects/cupmark/cup.svg") center / contain no-repeat;
+    }
+    /* Tall café photographs sit in a split column; without a cap they dominate the page. */
+    .cm-split .cm-photo { max-width: 430px; margin-inline: auto; }
+    .cm-criteria { margin-top: 24px; }
+    .cm-shots { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: clamp(14px, 2vw, 22px); max-width: 680px; margin-inline: auto; }
+    .cm-phone {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 12px;
+      aspect-ratio: 9 / 19.2;
+      padding: 18px;
+      text-align: center;
+      width: 100%;
+      max-width: 220px;
+      justify-self: center;
+      border-radius: 30px;
+      border: 1px solid rgba(62, 39, 27, 0.34);
+      background: linear-gradient(180deg, #FFFBF3, #F4E9D8);
+      box-shadow: inset 0 0 0 7px rgba(62, 39, 27, 0.10), 0 34px 64px -46px rgba(62, 39, 27, 0.95);
+    }
+    .cm-phone::before {
+      content: "";
+      width: 40px;
+      height: 40px;
+      background: var(--brass);
+      opacity: 0.6;
+      -webkit-mask: url("/static/projects/cupmark/cup.svg") center / contain no-repeat;
+      mask: url("/static/projects/cupmark/cup.svg") center / contain no-repeat;
+    }
+    .cm-phone span { font-family: var(--font-mono); font-size: 0.66rem; letter-spacing: 0.14em; text-transform: uppercase; color: var(--brass-deep); }
+    .cm-price { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; margin-top: 26px; }
+    .cm-price .card { padding: clamp(20px, 2.6vw, 26px); }
+    .cm-price h3 { margin: 0 0 4px; font-size: 1.05rem; }
+    .cm-price .cm-price__tag { display: block; font-family: var(--font-display); font-size: 1.7rem; line-height: 1.1; color: var(--brass-deep); margin: 6px 0 12px; }
+    .cm-price p { margin: 0; color: var(--ivory-dim); font-size: 0.93rem; }
+    .cm-free-note { margin-top: 20px; padding: 16px 18px; border-radius: 12px; border: 1px solid var(--line); background: rgba(255, 252, 246, 0.86); color: var(--ivory-dim); font-size: 0.95rem; }
+    .cm-faq { display: grid; gap: 10px; }
+    .cm-faq__item { background: rgba(255, 252, 246, 0.92); border: 1px solid var(--line); border-radius: 14px; padding: 16px 20px; }
+    .cm-faq__item summary { display: flex; justify-content: space-between; align-items: baseline; gap: 16px; cursor: pointer; font-family: var(--font-display); font-weight: 700; font-size: 1.05rem; color: var(--ivory); list-style: none; }
+    .cm-faq__item summary::-webkit-details-marker { display: none; }
+    .cm-faq__item summary::after { content: "+"; flex: none; font-family: var(--font-mono); font-weight: 400; color: var(--brass-deep); }
+    .cm-faq__item[open] summary::after { content: "\2013"; }
+    .cm-faq__item p { margin: 10px 0 0; color: var(--ivory-dim); font-size: 0.95rem; }
+    .cm-faq__item p + p { margin-top: 8px; }
+    .cm-legal { margin-top: clamp(18px, 3vw, 26px); }
+    .cm-legal h3 { margin-top: 24px; }
+    .cm-legal p, .cm-legal li { font-size: 0.95rem; }
+    .cm-legal ol { padding-left: 1.2rem; display: grid; gap: 10px; }
+    /* Legal texts stay in the HTML for crawlers and the App Store, but start collapsed. */
+    .cm-legal-section { padding-top: clamp(22px, 3vw, 32px); }
+    .cm-collapse { padding: 0; margin-top: 0; }
+    .cm-collapse__summary { display: grid; gap: 8px; padding: clamp(20px, 3vw, 30px); cursor: pointer; list-style: none; }
+    .cm-collapse__summary::-webkit-details-marker { display: none; }
+    .cm-collapse__summary h2 { margin: 0; }
+    .cm-collapse__hint { display: inline-flex; align-items: center; gap: 8px; font-family: var(--font-mono); font-size: 0.7rem; letter-spacing: 0.12em; text-transform: uppercase; color: var(--brass-deep); }
+    .cm-collapse__hint::before { content: attr(data-closed); }
+    .cm-collapse[open] .cm-collapse__hint::before { content: attr(data-open); }
+    .cm-collapse__hint::after { content: "+"; font-size: 1rem; line-height: 1; }
+    .cm-collapse[open] .cm-collapse__hint::after { content: "\2013"; }
+    .cm-collapse__summary:hover .cm-collapse__hint { color: var(--brass); }
+    .cm-collapse__body { padding: 0 clamp(20px, 3vw, 30px) clamp(24px, 3vw, 32px); }
+    .cm-collapse__body > h3:first-child { margin-top: 4px; }
+    .cm-lang { font-family: var(--font-mono); font-size: 0.72rem; letter-spacing: 0.12em; text-transform: uppercase; }
+    @media (max-width: 980px) {
+      .cm-cards, .cm-price { grid-template-columns: 1fr 1fr; }
+      .cm-cards .card:last-child { grid-column: 1 / -1; }
+      .cm-price .card:last-child { grid-column: 1 / -1; }
+    }
+    @media (max-width: 860px) {
+      .cm-hero, .cm-split { grid-template-columns: 1fr; }
+      .cm-hero__art { max-width: 640px; }
+      .cm-shots { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+    }
+    @media (max-width: 640px) {
+      .cm-cards, .cm-two, .cm-price { grid-template-columns: 1fr; }
+      .cm-shots { grid-template-columns: 1fr; max-width: 300px; margin: 0 auto; }
+    }
+  </style>
+</head>
+<body class="cm-page">
+  <header class="navbar">
+    <div class="container nav-inner">
+      <a href="/" class="brand" aria-label="DerSchweigert – Startseite"><img src="/static/logo-mark.svg" alt="" width="38" height="38" /><span class="brand-name"><span class="brand-der">Der</span><span class="brand-main">Schweigert</span></span></a>
+      <button class="nav-toggle" type="button" aria-label="Menü öffnen" aria-expanded="false" aria-controls="primary-nav"><span></span></button>
+      <nav class="nav-links" id="primary-nav" aria-label="Hauptnavigation">
+        <a href="/">Start</a>
+        <a href="#community">Community</a>
+        <a href="#app">App</a>
+        <a href="#test">Test</a>
+        <a href="#faq">FAQ</a>
+        <a href="#datenschutz">Datenschutz</a>
+        <a class="nav-cta cm-lang" href="/cupmark/en" hreflang="en" lang="en">English</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="page-content">
+    <div class="container">
+      <div class="cm-hero">
+        <div>
+          <img class="cm-mark" src="/static/projects/cupmark-icon.png" alt="Cupmark-App-Icon: eine Kaffeebohne in Creme auf dunklem Braun" width="76" height="76" decoding="async" />
+          <span class="eyebrow">Specialty Coffee · Community</span>
+          <h1>Cupmark</h1>
+          <p class="lead"><strong>Jede Tasse, die du einträgst, macht die Bohne für alle lesbar.</strong></p>
+          <p class="lead">Scannen, brauen, bewerten – in Sekunden. Ab fünf Leuten wird aus euren Tassen ein Bild, das mehr taugt als jede Rezension.</p>
+          <p class="cm-cta-row">
+            <span class="btn btn-primary cm-pending"><svg class="cm-btn-cup" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M4.5 10.5h11v3.2a4.3 4.3 0 0 1-4.3 4.3H8.8a4.3 4.3 0 0 1-4.3-4.3z"/><path d="M15.5 11.4h1.6a2.4 2.4 0 0 1 0 4.8h-1.6"/><path d="M3.2 20.4h13.6"/></svg>Kostenlos mitschmecken</span>
+            <a class="cm-textlink" href="#app">So funktioniert's</a>
+          </p>
+          <p class="cm-todo">TODO: Link zum öffentlichen TestFlight-Aufruf einsetzen</p>
+          <ul class="chips" style="margin-top: 22px;">
+            <li>Startphase kostenlos</li>
+            <li>Ab 5 Personen: Community-Profil</li>
+            <li>Fokus auf Kaffee</li>
+          </ul>
+        </div>
+        <div class="cm-hero__art">
+          <img class="cm-photo" src="/static/projects/cupmark/cafe-friends.jpg" alt="Zwei Freunde lachen über ihren Kaffee an einem Marmortisch, das Telefon liegt mit dem Display nach unten daneben" width="1536" height="864" decoding="async" />
+        </div>
+      </div>
+
+      <section class="section" id="community">
+        <div class="section-head">
+          <span class="eyebrow">Community</span>
+          <h2>Was vielen schmeckt, ist ehrlicher als eine Meinung.</h2>
+          <p>Cupmark sammelt keine Sterne und keine Kommentare. Es sammelt strukturierte Zubereitungen: Methode, Mahlgrad, Verhältnis, Wasser, acht Kriterien. Ab fünf verschiedenen Personen wird daraus ein Profil pro Bohne – das Bild davon, wie sie wirklich schmeckt und wie sie am besten gelingt.</p>
+          <p>Cupmark will deshalb kein weiteres soziales Netzwerk sein: keine Likes, keine Follower, keine Kommentare, keine Timeline. Was bleibt, sind Bohnen, Zubereitungen und das, was viele davon halten.</p>
+        </div>
+
+        <div class="cm-cards">
+          <div class="card">
+            <h3>Der Schnitt, nicht die Einzelstimme</h3>
+            <p>Gezeigt wird nur, was mindestens fünf verschiedene Personen so erlebt haben. Kein einzelnes Protokoll, keine Bühne für die lauteste Meinung.</p>
+          </div>
+          <div class="card">
+            <h3>Geben und nehmen</h3>
+            <p>Wer eine Bohne selbst bewertet hat, sieht ihren Community-Schnitt. So wächst die Karte mit jeder Tasse – ohne Werbung und ohne Anreiz zum Schreien.</p>
+          </div>
+          <div class="card">
+            <h3>Dein Protokoll bleibt deins</h3>
+            <p>Ob deine Bewertungen in die Durchschnittswerte einfließen, entscheidest du. Voreingestellt ist Nein; ein Häkchen genügt, jederzeit widerrufbar.</p>
+          </div>
+        </div>
+
+        <div class="cm-split" style="margin-top: 34px;">
+          <div>
+            <ul class="list">
+              <li><strong>Du scannst und bewertest.</strong> Die Packung, die du sowieso trinkst – einmal festgehalten, in unter einer Minute.</li>
+              <li><strong>Wir rechnen jede Nacht neu.</strong> Ab fünf Personen entsteht der Schnitt; er ist höchstens einen Tag alt und wird nie aus einer einzelnen Tasse gebaut.</li>
+              <li><strong>Alle sehen das Profil, niemand dein Protokoll.</strong> Kein Name, keine Reihenfolge, keine Rangliste der Vieltrinker.</li>
+            </ul>
+          </div>
+          <div>
+            <img class="cm-photo" src="/static/projects/cupmark/cafe-phone.jpg" alt="Nahaufnahme: eine Hand hält ein Telefon mit dem Rücken zur Kamera, daneben steht ein Flat White auf Marmor" width="1152" height="1440" loading="lazy" decoding="async" />
+          </div>
+        </div>
+      </section>
+
+      <section class="section" id="app">
+        <div class="section-head">
+          <span class="eyebrow">Die App</span>
+          <h2>Brau- und Genussprotokoll, ganz mühelos.</h2>
+          <p>Cupmark ist eine iPhone-App (ab iOS 17, Deutsch und Englisch) für Menschen, denen die Bohne wichtiger ist als der Becher drumherum.</p>
+        </div>
+        <ul class="list">
+          <li><strong>Scannen.</strong> Strichcode der Packung lesen. Bekannte Bohnen füllen sich von selbst; unbekannte beschreibst du aus Auswahllisten.</li>
+          <li><strong>Brauen.</strong> Der eingebaute Timer hält Methode, Menge, Mahlgrad und Wasser fest: gewählt, gesteppt, gestoppt.</li>
+          <li><strong>Bewerten.</strong> Acht feste Kriterien und ein geschlossener Wortschatz für Geschmacksnoten. Deshalb bleibt jede Bewertung vergleichbar.</li>
+          <li><strong>Wiederholen.</strong> Ein Rezept mit einem Tipp erneut brauen. Verlauf, Rezepte und eigene Statistiken sind kostenlos.</li>
+          <li><strong>Ohne Verbindung.</strong> Scannen, brauen und bewerten funktioniert offline; abgeglichen wird, sobald du wieder online bist. CSV-Export jederzeit.</li>
+        </ul>
+        <ul class="chips cm-criteria" aria-label="Die acht Bewertungskriterien">
+          <li>Aroma</li>
+          <li>Geschmack</li>
+          <li>Abgang</li>
+          <li>Säure</li>
+          <li>Körper</li>
+          <li>Süße</li>
+          <li>Balance</li>
+          <li>Gesamt</li>
+        </ul>
+        <div class="cm-two">
+          <div class="card">
+            <h3>Nur Kaffee</h3>
+            <p>Wir halten die Community beim Kaffee: keine Selbstinszenierung, kein Feed, nichts zu moderieren. Gespeichert wird, was du gebraut und wie du es bewertet hast.</p>
+          </div>
+          <div class="card">
+            <h3>Standardmäßig privat</h3>
+            <p>Gezeigt werden nur Durchschnittswerte. Dein Regal, deine Tassen, deine Notizen bleiben bei dir – es sei denn, du gibst sie ausdrücklich für die Community frei.</p>
+          </div>
+        </div>
+      </section>
+
+      <section class="section" id="roester">
+        <div class="section-head">
+          <span class="eyebrow">Röstereien</span>
+          <h2>Bohnen von Menschen, die du treffen kannst.</h2>
+          <p>Specialty heißt: Jemand hat entschieden, welche Bohne geröstet wird, wie lange und für wen. Cupmark stellt diese Leute vor – kleine Röstereien aus deiner Gegend, kuratiert statt beliebig, ohne Werbeplätze und ohne bezahlte Reihenfolge.</p>
+        </div>
+        <div class="cm-split">
+          <div>
+            <ul class="list">
+              <li><strong>Kuratiert, nicht beliebig.</strong> Aufgenommen wird, wer selbst röstet und Herkunft, Prozess und Röstung offenlegt – keine bezahlten Plätze, keine Reihenfolge nach Budget.</li>
+              <li><strong>Direkt vom Röster.</strong> Jede vorgestellte Bohne verlinkt auf die Rösterei selbst, nicht auf einen Zwischenhändler. Du kaufst dort, wo geröstet wird.</li>
+              <li><strong>Feedback, das ankommt.</strong> Röstereien sehen, wie ihre Bohnen tatsächlich gebrüht und bewertet werden – als Durchschnitt, nie als einzelnes Profil.</li>
+            </ul>
+            <p class="cm-free-note">Im Aufbau: Die ersten Röstereien sprechen wir gerade an. Sobald eine dabei ist, steht sie hier – mit ihren Bohnen und ihrem Profil.</p>
+            <p class="cm-todo">TODO: Röstereien-Liste einsetzen, sobald die ersten Partner zugesagt haben</p>
+          </div>
+          <div>
+            <img class="cm-photo" src="/static/projects/cupmark/roastery.jpg" alt="Hände über der Kühlwanne einer kleinen Rösterei, in der Hand eine Schale mit frisch gerösteten Bohnen" width="1152" height="1440" loading="lazy" decoding="async" />
+          </div>
+        </div>
+      </section>
+
+      <section class="section" id="kauf">
+        <div class="section-head">
+          <span class="eyebrow">Im Laden</span>
+          <h2>Erst schauen, was andere schmecken. Dann kaufen.</h2>
+          <p>Vor dem Regal, die Packung in der Hand: Ein Scan zeigt dir, ob die Community zu dieser Bohne schon etwas weiß – Schnitt, passende Methode, bewährte Rezepte. Keine Sterne, keine Werbetexte, sondern Zubereitungen von Leuten, die sie wirklich gemacht haben.</p>
+        </div>
+        <div class="cm-split">
+          <div>
+            <img class="cm-photo" src="/static/projects/cupmark/in-store.jpg" alt="Eine Frau in den Dreißigern hält im Laden eine Kaffeepackung mit dem Rücken zur Kamera und ein Telefon daneben, Regal mit Kaffeepackungen im Hintergrund" width="1152" height="1440" loading="lazy" decoding="async" />
+          </div>
+          <div>
+            <ul class="list">
+              <li><strong>Scannen.</strong> Strichcode lesen und sehen, ob es zu dieser Bohne schon Daten gibt – noch im Laden, ohne Anmeldung für den Blick.</li>
+              <li><strong>Vergleichen.</strong> Community-Schnitt, die Methoden, die dazu passen, und die Rezepte, die andere wiederholt haben.</li>
+              <li><strong>Entscheiden.</strong> Kaufen, weil es passt – oder stehen lassen und das Geld in eine Bohne stecken, die zu deinem Geschmack passt.</li>
+            </ul>
+          </div>
+        </div>
+        <div class="cm-two">
+          <div class="card">
+            <h3>Was du siehst</h3>
+            <p>Das Profil der Bohne: wie sie insgesamt abschneidet, mit welcher Methode sie am besten gelingt und welche Rezepte andere wiederholt haben.</p>
+          </div>
+          <div class="card">
+            <h3>Was du nicht siehst</h3>
+            <p>Niemandes Protokoll. Keine Namen, keine Kommentare, keine bezahlte Platzierung – und keine Zahl, wo es noch keine echten Bewertungen gibt.</p>
+          </div>
+        </div>
+      </section>
+
+      <section class="section" id="einblick">
+        <div class="section-head">
+          <span class="eyebrow">Einblick</span>
+          <h2>So sieht es aus.</h2>
+          <p>Drei Bildschirme aus der App: Regal, Zubereitung, Community-Profil. Die Aufnahmen folgen, sobald der Test fliegt.</p>
+        </div>
+        <div class="cm-shots">
+          <div class="cm-phone" role="img" aria-label="Platzhalter für den Screenshot des Regals"><span>Regal<br />Screenshot folgt</span></div>
+          <div class="cm-phone" role="img" aria-label="Platzhalter für den Screenshot der Zubereitung"><span>Zubereitung<br />Screenshot folgt</span></div>
+          <div class="cm-phone" role="img" aria-label="Platzhalter für den Screenshot des Community-Profils"><span>Community-Profil<br />Screenshot folgt</span></div>
+        </div>
+        <p class="cm-todo">TODO: echte Screenshots einsetzen, sobald eine testfähige Version gebaut ist</p>
+      </section>
+
+      <section class="section" id="test">
+        <div class="cm-split">
+          <div>
+            <div class="section-head">
+              <span class="eyebrow">Mitprobieren</span>
+              <h2>Der Test läuft über TestFlight.</h2>
+              <p>Cupmark ist in einem geschlossenen Test. Du brauchst ein iPhone mit iOS 17 oder neuer und die kostenlose TestFlight-App von Apple.</p>
+            </div>
+            <p class="cm-cta-row"><span class="btn btn-primary cm-pending">Kostenlos mitschmecken</span></p>
+            <p class="cm-todo">TODO: TestFlight-Link eintragen, sobald der Aufruf existiert</p>
+            <ul class="list" style="margin-top: 26px;">
+              <li>Scanne ein paar Packungen, die du wirklich zu Hause hast, und halte eine Zubereitung so fest, wie du sie normalerweise machst.</li>
+              <li>Probier es ohne Verbindung aus und lass es danach abgleichen.</li>
+              <li>Sag uns, was gehakt hat – über „Beta-Feedback senden“ in TestFlight oder per Mail an <a href="mailto:info@derschweigert.de?subject=Cupmark%20Test">info@derschweigert.de</a>.</li>
+            </ul>
+            <p style="margin-top: 18px; color: var(--ivory-dim);">Die Testversionen sprechen mit einem Testserver; Einträge aus der Testphase können vor dem Start gelöscht werden. Teilnahme und Feedback laufen über TestFlight, einen Dienst von Apple – dort gelten Apples Bedingungen und Datenschutzhinweise.</p>
+          </div>
+          <div>
+            <img class="cm-photo" src="/static/projects/cupmark/cafe-sip.jpg" alt="Nahaufnahme: ein Mann in den Dreißigern riecht an einer handgemachten Keramiktasse, das Telefon liegt auf dem Marmor" width="1152" height="1440" loading="lazy" decoding="async" />
+          </div>
+        </div>
+      </section>
+
+      <section class="section" id="preis">
+        <div class="section-head">
+          <span class="eyebrow">Kosten</span>
+          <h2>Erst mal nichts. Und für die Ersten bleibt es dabei.</h2>
+          <p>Cupmark startet kostenlos – mit allem, was die App kann. Wer früh dabei ist, behält diesen Zugang.</p>
+        </div>
+        <div class="cm-price">
+          <div class="card">
+            <h3>Startphase</h3>
+            <span class="cm-price__tag">0 €</span>
+            <p>Regal, Zubereitungen, Bewertungen, eigene Statistiken, Rezepte, CSV-Export, offline. Kein Abo, keine Grenze, keine Werbung.</p>
+          </div>
+          <div class="card">
+            <h3>Die ersten sechs Monate</h3>
+            <span class="cm-price__tag">dauerhaft gratis</span>
+            <p>Wer innerhalb der ersten sechs Monate nach dem Start des Tests dazukommt, behält den kostenlosen Zugang – auch dann, wenn später ein Bezahltarif eingeführt wird.</p>
+          </div>
+          <div class="card">
+            <h3>Danach</h3>
+            <span class="cm-price__tag">Preis offen</span>
+            <p>Ein Bezahltarif ist geplant, sobald die Community-Daten tragen. Der Preis steht noch nicht fest; er wird sich an vergleichbaren Spezialitäten-Apps am Markt orientieren – und vorher hier angekündigt.</p>
+          </div>
+        </div>
+        <p class="cm-free-note">Was heute kostenlos ist, bleibt kostenlos. Der Bezahltarif kommt für die Daten obendrauf, nicht als Tür vor deinem eigenen Protokoll.</p>
+      </section>
+
+      <section class="section" id="faq">
+        <div class="section-head">
+          <span class="eyebrow">FAQ</span>
+          <h2>Kurze Antworten.</h2>
+          <p>Was am häufigsten gefragt wird – die Antworten gelten für den Test und für die Startphase.</p>
+        </div>
+        <div class="cm-faq">
+          <details class="cm-faq__item">
+            <summary>Was kostet Cupmark?</summary>
+            <p>In der Startphase nichts. Wer innerhalb der ersten sechs Monate nach dem Start des Tests dazukommt, behält den kostenlosen Zugang dauerhaft. Danach ist ein Bezahltarif geplant; Preis und Bedingungen stehen noch nicht fest und werden hier angekündigt, bevor er gilt.</p>
+          </details>
+          <details class="cm-faq__item">
+            <summary>Brauche ich ein Konto?</summary>
+            <p>Für den Blick auf veröffentlichte Durchschnittswerte nicht. Für Regal, Zubereitungen, Bewertungen und Rezepte meldest du dich mit Apple an; dabei entsteht nur eine pseudonyme Kennung, ohne Namen und ohne E-Mail-Adresse.</p>
+          </details>
+          <details class="cm-faq__item">
+            <summary>Woher kommen die Durchschnittswerte?</summary>
+            <p>Aus strukturierten Zubereitungen: Methode, Mahlgrad, Verhältnis, Wasser und acht Kriterien. Ein Profil entsteht erst, wenn mindestens fünf verschiedene Personen eine Bohne bewertet haben; es wird jede Nacht neu berechnet und ist höchstens einen Tag alt.</p>
+          </details>
+          <details class="cm-faq__item">
+            <summary>Bestimme ich, ob meine Bewertungen mitzählen?</summary>
+            <p>Ja. Voreingestellt ist Nein. Sagst du Ja, zählen alle deine bewerteten Zubereitungen mit, auch frühere. Widerrufst du, verschwinden sie bei der nächsten erfolgreichen nächtlichen Berechnung aus den Durchschnitten – dein eigenes Protokoll bleibt unverändert.</p>
+          </details>
+          <details class="cm-faq__item">
+            <summary>Was passiert mit meinen Fotos?</summary>
+            <p>Ein Etikettfoto geht an unseren Server, damit wir eine Bohne für den Katalog bestätigen können. Alle Metadaten werden entfernt, das Original wird nach etwa zwei Tagen gelöscht, und das Foto wird anderen nie gezeigt. Fotos von Zubereitungen bleiben auf deinem Gerät.</p>
+          </details>
+          <details class="cm-faq__item">
+            <summary>Funktioniert Cupmark offline?</summary>
+            <p>Ja. Scannen, brauen und bewerten geht ohne Verbindung; abgeglichen wird, sobald du wieder online bist. Deine Daten kannst du jederzeit als CSV exportieren.</p>
+          </details>
+          <details class="cm-faq__item">
+            <summary>Ist Cupmark ein soziales Netzwerk?</summary>
+            <p>Nein. Keine Likes, keine Follower, keine Kommentare, keine Timeline. Was bleibt, sind Bohnen, Zubereitungen und das, was viele davon halten.</p>
+          </details>
+          <details class="cm-faq__item">
+            <summary>Ich habe eine Rösterei – wie komme ich auf die Seite?</summary>
+            <p>Melde dich bei <a href="mailto:info@derschweigert.de?subject=Cupmark%20R%C3%B6sterei">info@derschweigert.de</a>. Aufgenommen wird, wer selbst röstet und Herkunft, Prozess und Röstung offenlegt. Bezahlte Plätze gibt es nicht.</p>
+          </details>
+          <details class="cm-faq__item">
+            <summary>Was passiert, wenn ich mein Konto lösche?</summary>
+            <p>Der Eintrag deines Anmeldekontos, deine Einträge, Bewertungen und dein Profil werden sofort entfernt, ebenso jede Version deiner Etikettenfotos. Kopien in Sicherungen können bis zu 35 Tage beziehungsweise rund 13 Monate bestehen bleiben und werden bei einer Wiederherstellung erneut entfernt. In den Durchschnitten verschwinden deine Bewertungen bei der nächsten nächtlichen Berechnung.</p>
+          </details>
+        </div>
+      </section>
+
+      <section class="section cm-legal-section" id="datenschutz">
+        <details class="content-card doc-card cm-legal cm-collapse">
+          <summary class="cm-collapse__summary">
+            <span class="eyebrow">Datenschutz</span>
+            <h2>Datenschutzerklärung</h2>
+            <span class="cm-collapse__hint" data-closed="Aufklappen" data-open="Zuklappen"></span>
+          </summary>
+          <div class="cm-collapse__body">
+          <h3>Wer verantwortlich ist</h3>
+          <p>Urs Schweigert, Am Sonnenhang 12, 85235 Pfaffenhofen a.d. Glonn, Deutschland, ist der Betreiber. Kontakt für Datenschutz und für alle Anfragen: <a href="mailto:info@derschweigert.de">info@derschweigert.de</a>. Weitere Angaben stehen im <a href="/impressum">Impressum</a>.</p>
+
+          <h3>Was die App nicht tut</h3>
+          <p>Keine Werbung, kein Tracking, keine Analyse, keine Absturzberichte und keine Software-Entwicklungspakete von Drittanbietern für diese Zwecke. Die App fragt weder nach deinem Namen noch nach einer E-Mail-Adresse, einem Standort oder deinen Kontakten.</p>
+
+          <h3>Was gespeichert wird und warum</h3>
+          <ul class="list">
+            <li><strong>Dein Konto.</strong> Du meldest dich mit Apple an. Die App erhält nur eine pseudonyme Kennung – weder Name noch E-Mail-Adresse. Gespeichert wird sie in einem Benutzereintrag von Amazon Cognito, damit wir wissen, welche Daten dir gehören (Art. 6 Abs. 1 lit. b DSGVO).</li>
+            <li><strong>Dein Protokoll.</strong> Bohnen, Zubereitungen, Bewertungen, Rezepte und deine Einstellungen (Sprache und deine Entscheidung zu Durchschnittswerten), damit die App funktioniert und deine Geräte abgleicht (Art. 6 Abs. 1 lit. b DSGVO).</li>
+            <li><strong>Etikettenfotos.</strong> Fotografierst du ein Etikett, wird das Foto an unseren Server gesendet und kann von uns geprüft werden, um eine Bohne für den gemeinsamen Katalog zu bestätigen. Es wird anderen Nutzern nie gezeigt. Der Server entfernt alle Metadaten, auch einen Standort, und behält nur die bereinigte Kopie; das Original wird innerhalb von etwa zwei Tagen automatisch gelöscht.</li>
+            <li><strong>Deine Entscheidung zu Durchschnittswerten.</strong> Ob deine Bewertungen in die Community-Durchschnitte einfließen, wird mit deinem Profil gespeichert. Voreingestellt ist Nein. Sagst du Ja (Einwilligung, Art. 6 Abs. 1 lit. a DSGVO), zählen alle deine bewerteten Zubereitungen mit, auch frühere. Widerrufst du, werden deine Bewertungen bei der nächsten erfolgreichen nächtlichen Neuberechnung entfernt; dein eigenes Protokoll bleibt unverändert. Änderbar jederzeit in der App.</li>
+            <li><strong>Bohnen-Abfragen.</strong> Beim Scannen schlägt unser Server den Strichcode bei Open Food Facts nach und kann Name, Marke und Bild des Produkts im gemeinsamen Katalog speichern. Die Abfrage macht unser Server, nicht dein Telefon; Open Food Facts sieht dein Gerät also nicht.</li>
+            <li><strong>Technische Protokolle.</strong> Die Server bewahren die technischen Aufzeichnungen auf, die der Betrieb eines Dienstes braucht (zum Beispiel Anfragefehler), zwei Wochen lang und nur, um den Dienst sicher und funktionsfähig zu halten (Art. 6 Abs. 1 lit. f DSGVO).</li>
+          </ul>
+
+          <h3>Blick ohne Konto</h3>
+          <p>Ein Blick auf veröffentlichte Durchschnittswerte braucht kein Konto, und ohne Konto entsteht auch kein Nutzerprofil. Für diese Anfrage überträgt dein Gerät den Strichcode und die technischen Verbindungsdaten an unseren Server; dafür gilt die technische Protokollfrist von zwei Wochen.</p>
+
+          <h3>Community-Durchschnitte</h3>
+          <p>Durchschnittswerte erscheinen nur, wenn mindestens fünf verschiedene Personen eine Bohne bewertet haben. Kein einzelnes Protokoll, keine einzelne Bewertung und kein Profil wird anderen gezeigt. Die Werte werden jede Nacht neu berechnet und sind deshalb in der Regel bis zu einen Tag alt; schlägt die Neuberechnung länger als drei Tage fehl, werden keine Durchschnittswerte angezeigt. Löschst du eine Zubereitung oder dein Konto, verschwinden die zugehörigen Bewertungen bei der nächsten erfolgreichen nächtlichen Neuberechnung. Die veröffentlichten Durchschnitte sind für alle sichtbar – in der App und auf dieser Seite. Röstereien sehen ausschließlich diese veröffentlichten Werte, nie ein einzelnes Protokoll.</p>
+
+          <h3>Wo die Daten verarbeitet werden</h3>
+          <p>Die Daten liegen bei Amazon Web Services in Frankfurt am Main (Region eu-central-1). Amazon Web Services EMEA SARL ist unser Auftragsverarbeiter. Die Anmeldung mit Apple stellt Apple bereit und verantwortet sie als eigener Verantwortlicher nach seiner eigenen Datenschutzerklärung. Wir geben keine App-Daten an andere Empfänger weiter und bringen App-Daten nicht selbst aus der EU hinaus.</p>
+
+          <h3>Wie lange sie gespeichert werden und wie du sie löschst</h3>
+          <p>Deine Daten bleiben, solange dein Konto besteht. In den Einstellungen der App löschst du dein Konto: Das entfernt sofort den Eintrag deines Anmeldekontos, deine Regaleinträge, Zubereitungen, Bewertungen, Rezepte und dein Profil sowie jede Version der von dir hochgeladenen Etikettenfotos. Fotos bereits bestätigter Bohnen bleiben nach der Bestätigung noch 90 Tage im gemeinsamen Katalog (mit älteren Versionen bis zu etwa vier Monate), sind aber nicht mehr mit dir verknüpft.</p>
+          <p>Sicherungen: Nach einer Löschung können Kopien bis zu 35 Tage in der Wiederherstellung der Datenbank zu einem früheren Zeitpunkt und bis zu etwa 13 Monate in wöchentlichen Exporten verbleiben. Ein Löschprotokoll sorgt dafür, dass jede Wiederherstellung aus einer Sicherung gelöschte Konten wieder entfernt, bevor die Daten verwendet werden. Jeder Eintrag enthält nur die Konto-Kennung, die Kennungen der zugehörigen Etikettenfotos und den Zeitpunkt der Löschung; Einträge werden nach 400 Tagen gelöscht (bis zu etwa 14 Monate einschließlich älterer Versionen). Kurzlebige technische Datensätze, etwa tägliche Nutzungszähler und unfertige Uploads, laufen von selbst ab.</p>
+
+          <h3>Deine Rechte</h3>
+          <p>Du kannst Auskunft, Berichtigung, Löschung, Einschränkung der Verarbeitung, eine Kopie in einem gängigen Format und Widerspruch gegen die Verarbeitung auf Grundlage berechtigter Interessen verlangen. CSV-Export und Kontolöschung sind bereits in der App möglich; für alles Weitere schreib an die oben genannte Adresse. Eine Einwilligung kannst du jederzeit widerrufen. Du darfst dich außerdem bei einer Datenschutz-Aufsichtsbehörde beschweren, insbesondere in dem Land, in dem du lebst oder arbeitest; für uns zuständig ist das Bayerische Landesamt für Datenschutzaufsicht (BayLDA), Promenade 18, 91522 Ansbach.</p>
+
+          <h3>Kamera</h3>
+          <p>Die App nutzt die Kamera nur, um einen Strichcode zu lesen – das geschieht auf deinem Gerät – und, wenn du es wünschst, um ein Etikett oder eine Zubereitung zu fotografieren. Hochgeladen wird nur ein Etikettenfoto, das du aufnimmst. Fotos von Zubereitungen bleiben auf dem Gerät. Wenn du in den Einstellungen „Fotos von Zubereitungen in die Gerätesicherung einbeziehen“ einschaltest, nimmt Apple sie in die Sicherung dieses iPhones auf; diese Sicherung ist ein Dienst von Apple unter den Bedingungen von Apple, und Cupmark erhält die Fotos nicht. Die Einstellung ist standardmäßig aus.</p>
+
+          <h3>Katalogdaten</h3>
+          <p>Produktdaten und Bilder stammen von Open Food Facts und stehen unter der Open Database License (ODbL): <a href="https://world.openfoodfacts.org/legal" target="_blank" rel="noopener noreferrer">openfoodfacts.org/legal</a>. Wir behalten nur die Angaben, die zur Identifikation einer Bohne nötig sind.</p>
+
+          <h3>Diese Seite</h3>
+          <p>Beim Aufruf dieser Seite verarbeitet Amazon Web Services (AWS) als unser Hosting-Anbieter technisch notwendige Verbindungsdaten (unter anderem IP-Adresse, Zeitpunkt, angeforderte Datei und Browserkennung), um die Seite auszuliefern und Angriffe abzuwehren (Art. 6 Abs. 1 lit. f DSGVO). Wir führen dazu keine eigenen Zugriffsprotokolle und werten die Daten nicht aus. Die Seite setzt keine Cookies, lädt keine Schriften, Skripte oder Bilder von Drittanbietern und verwendet keine Analyse- oder Werbewerkzeuge. Die Fotografien auf dieser Seite wurden für diese Seite erzeugt.</p>
+          <p>Schreibst du uns per E-Mail, verarbeiten wir deine Angaben ausschließlich zur Beantwortung der Anfrage (Art. 6 Abs. 1 lit. b bzw. lit. f DSGVO).</p>
+
+          <h3>Änderungen</h3>
+          <p>Ändert sich diese Erklärung, erscheint die neue Fassung mit Datum hier. Stand: 27. November 2026.</p>
+          </div>
+        </details>
+      </section>
+
+      <section class="section cm-legal-section" id="bedingungen">
+        <details class="content-card doc-card cm-legal cm-collapse">
+          <summary class="cm-collapse__summary">
+            <span class="eyebrow">Bedingungen</span>
+            <h2>Bedingungen für den Test</h2>
+            <span class="cm-collapse__hint" data-closed="Aufklappen" data-open="Zuklappen"></span>
+          </summary>
+          <div class="cm-collapse__body">
+          <p><strong>Stand: 27. November 2026</strong></p>
+
+          <p>Ergänzend gelten die <a href="/nutzungsbedingungen">Gemeinsamen Nutzungsbedingungen</a>. Sie regeln Anbieter, zulässige Nutzung, Rechte an Inhalten, Haftung und anwendbares Recht. Für Cupmark gilt zusätzlich:</p>
+          <ol>
+            <li><strong>Beta.</strong> Cupmark ist ein Werkzeug, um Kaffee festzuhalten und zu vergleichen. Die Testversionen sind eine Beta: Funktionen können sich ändern, Fehler auftreten und Testdaten vor dem Start gelöscht werden.</li>
+            <li><strong>Konto und Alter.</strong> Für Regal, Zubereitungen, Bewertungen und Rezepte brauchst du ein Konto; du meldest dich mit Apple an und bist für das Gerät und die Apple-Kennung verantwortlich, die du verwendest. Veröffentlichte Durchschnittswerte kannst du auch ohne Konto ansehen. Du bestätigst, dass du mindestens 16 Jahre alt bist. Dein Konto kannst du jederzeit in der App löschen.</li>
+            <li><strong>Deine Daten.</strong> Dein Protokoll bleibt deins. Du erlaubst uns, es so zu speichern und zu verarbeiten, wie es die Datenschutzerklärung beschreibt – und deine Bewertungen nur dann in Durchschnittswerte einzubeziehen, wenn du zustimmst.</li>
+            <li><strong>Durchschnittswerte.</strong> Veröffentlichte Durchschnittswerte darfst du für deinen eigenen Gebrauch ansehen und zitieren. Sie als Datensammlung weiterzuverbreiten oder für Werbung oder Produkte Dritter zu nutzen, ist ohne unsere Zustimmung nicht gestattet.</li>
+            <li><strong>Faire Nutzung.</strong> Keine Versuche, Daten anderer zu lesen, den Dienst zu überlasten oder ihn absichtlich mit falschen Daten zu speisen.</li>
+            <li><strong>Kostenlos in der Startphase.</strong> Die Nutzung ist in der Startphase kostenlos. Wer innerhalb der ersten sechs Monate nach dem Start des Tests beitritt, behält den kostenlosen Zugang; er gilt für das Konto, mit dem du beitrittst, und ist nicht übertragbar. Als Start des Tests gilt der erste öffentlich zugängliche Testbuild über TestFlight. Ein späterer Bezahltarif wird vor seiner Einführung mit eigenen Preisen und Bedingungen hier angekündigt; was in der Startphase kostenlos ist, bleibt kostenlos.</li>
+            <li><strong>Ende des Tests.</strong> Du kannst jederzeit aufhören. Wir können den Test oder ein Testkonto beenden, zum Beispiel wenn eine Testrunde endet.</li>
+          </ol>
+          </div>
+        </details>
+      </section>
+    </div>
+  </main>
+
+  <footer class="footer">
+    <div class="container footer-inner">
+      <div>Urs Schweigert</div>
+      <nav aria-label="Footer Navigation">
+        <a href="/impressum">Impressum</a>
+        <a href="/datenschutz">Datenschutz</a>
+        <a href="/nutzungsbedingungen">Nutzungsbedingungen</a>
+        <a href="mailto:info@derschweigert.de">Kontakt</a>
+        <a href="/cupmark/en" hreflang="en" lang="en">English</a>
+      </nav>
+    </div>
+  </footer>
+  <script src="/static/app.js"></script>
+</body>
+</html>
