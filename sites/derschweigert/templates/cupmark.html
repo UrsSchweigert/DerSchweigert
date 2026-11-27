@@ -74,6 +74,23 @@
     body.cm-page .btn-primary:hover { box-shadow: 0 24px 46px -24px rgba(62, 39, 27, 0.95); }
     body.cm-page .btn-secondary { border-color: rgba(62, 39, 27, 0.32); color: var(--ivory); }
     body.cm-page .section-head p + p { margin-top: 12px; }
+    .cm-devbar {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: baseline;
+      gap: 8px clamp(14px, 2vw, 26px);
+      margin: 6px 0 8px;
+      padding: 20px clamp(20px, 3vw, 34px);
+      border-radius: 20px;
+      background-image: linear-gradient(rgba(46, 28, 18, 0.9), rgba(40, 24, 16, 0.94)), url("/static/projects/cupmark/crema.jpg");
+      background-size: cover, cover;
+      background-position: center, center;
+      border: 1px solid rgba(62, 39, 27, 0.6);
+      box-shadow: 0 26px 60px -46px rgba(62, 39, 27, 0.95);
+      color: #F7EAD6;
+    }
+    .cm-devbar strong { font-family: var(--font-display); font-size: clamp(1.5rem, 3.4vw, 2.25rem); line-height: 1.1; }
+    .cm-devbar span { font-size: 0.95rem; line-height: 1.5; color: rgba(247, 234, 214, 0.82); max-width: 54ch; }
     .cm-hero { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.02fr); gap: clamp(26px, 4vw, 52px); align-items: center; padding-top: clamp(18px, 3vw, 36px); }
     .cm-mark { display: block; width: 76px; height: 76px; border-radius: 19px; border: 1px solid rgba(255, 255, 255, 0.7); box-shadow: 0 22px 44px -26px rgba(62, 39, 27, 0.8); margin-bottom: 20px; }
     .cm-hero h1 { margin: 10px 0 14px; font-size: clamp(2.6rem, 6vw, 4.2rem); line-height: 0.98; }
@@ -223,6 +240,11 @@
 
   <main class="page-content">
     <div class="container">
+      <div class="cm-devbar" role="note">
+        <strong>Projekt in Entwicklung</strong>
+        <span>Cupmark ist noch nicht veröffentlicht. Diese Seite zeigt den Stand der Entwicklung. Der Test läuft über TestFlight.</span>
+      </div>
+
       <div class="cm-hero">
         <div>
           <img class="cm-mark" src="/static/projects/cupmark-icon.png" alt="Cupmark-App-Icon: eine Kaffeebohne in Creme auf dunklem Braun" width="76" height="76" decoding="async" />

@@ -119,6 +119,14 @@ def test_cupmark_pages_read_in_order_and_state_the_free_promise():
         assert "/static/projects/cupmark/cafe-friends.jpg" in html
 
 
+def test_cupmark_pages_announce_the_project_as_in_development():
+    # The page describes an app nobody can install yet, so the first thing on it says so.
+    for path, phrase in (("/cupmark", "Projekt in Entwicklung"), ("/cupmark/en", "Project in development")):
+        html = client.get(path, follow_redirects=False).text
+        assert phrase in html, path
+        assert html.index("cm-devbar") < html.index('class="cm-hero"'), path
+
+
 def test_cupmark_pages_load_no_third_party_assets():
     # The site's CSP is same-origin only (script-src 'self'), so any external asset
     # would be blocked silently in the browser while looking fine in the source.
