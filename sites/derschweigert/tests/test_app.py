@@ -99,8 +99,8 @@ def test_cupmark_pages_read_in_order_and_state_the_free_promise():
     # beans, what the community makes of it, and only then the buy. Community data and
     # the six-month promise are commitments made to readers, so both are pinned too.
     sections = {
-        "/cupmark": ["app", "roester", "community", "kauf", "einblick", "test", "preis", "faq", "datenschutz", "bedingungen"],
-        "/cupmark/en": ["app", "roasters", "community", "store", "inside", "test", "price", "faq", "privacy", "terms"],
+        "/cupmark": ["einblick", "app", "roester", "community", "kauf", "test", "preis", "faq", "datenschutz", "bedingungen"],
+        "/cupmark/en": ["inside", "app", "roasters", "community", "store", "test", "price", "faq", "privacy", "terms"],
     }
     for path, expected in sections.items():
         html = client.get(path, follow_redirects=False).text
