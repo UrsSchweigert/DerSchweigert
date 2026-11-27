@@ -127,6 +127,26 @@ def test_cupmark_pages_announce_the_project_as_in_development():
         assert html.index("cm-devbar") < html.index('class="cm-hero"'), path
 
 
+def test_cupmark_pages_describe_the_averages_as_opt_out():
+    # Ratings count towards the community averages unless the owner objects, so the page
+    # must not promise an opt-in, and the privacy policy has to name the legitimate
+    # interest it rests on plus the right to object.
+    cases = (
+        ("/cupmark",
+         ("Standardmäßig willkommen", "art. 6 abs. 1 lit. f dsgvo", "widersprechen", "solange du nicht widersprichst"),
+         ("Voreingestellt ist Nein", "wenn du zustimmst", "Standardmäßig privat")),
+        ("/cupmark/en",
+         ("Welcome by default", "art. 6(1)(f) gdpr", "object at any time"),
+         ("The default is no", "only if you opt in", "Private by default")),
+    )
+    for path, needles, banned in cases:
+        html = client.get(path, follow_redirects=False).text.lower()
+        for needle in needles:
+            assert needle.lower() in html, (path, needle)
+        for phrase in banned:
+            assert phrase.lower() not in html, (path, phrase)
+
+
 def test_cupmark_pages_load_no_third_party_assets():
     # The site's CSP is same-origin only (script-src 'self'), so any external asset
     # would be blocked silently in the browser while looking fine in the source.
