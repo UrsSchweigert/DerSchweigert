@@ -547,14 +547,29 @@ h1.hero-title {
 }
 .platforms strong { font-weight: 600; color: var(--ivory); }
 .platforms em {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
   font-style: normal;
   font-family: var(--font-mono);
   font-size: 0.6rem;
   letter-spacing: 0.09em;
   text-transform: uppercase;
-  color: var(--accent, var(--brass));
+  color: var(--state, var(--accent, var(--brass)));
 }
-.platforms .is-soon { opacity: 0.45; }
+/* A status light per availability: green is live, yellow is still waiting, blue is in test. */
+.platforms em::before {
+  content: "";
+  flex: none;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: currentColor;
+  box-shadow: 0 0 7px currentColor;
+}
+.platforms .st-live { --state: #7FB069; }
+.platforms .st-pending { --state: #D9A63C; }
+.platforms .st-beta { --state: #74A9E0; }
 .project-card .chips { margin-top: 2px; }
 .project-card .chips li { font-size: 0.74rem; padding: 4px 10px; }
 .project-card .btn {

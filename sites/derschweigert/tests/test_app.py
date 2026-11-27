@@ -159,6 +159,33 @@ def test_cupmark_pages_load_no_third_party_assets():
         assert parser.check_balanced(), f"{path}: {parser.errors}"
 
 
+def test_homepage_availability_lights_match_the_shipped_state():
+    """Green where a visitor can use the thing today, yellow while it waits, blue in test."""
+    html = client.get("/").text
+    found = [
+        (label, status, state)
+        for state, label, status in re.findall(
+            r'<li class="(st-live|st-pending|st-beta)">.*?<strong>([^<]+)</strong><em>([^<]+)</em>',
+            html,
+            re.S,
+        )
+    ]
+    assert found == [
+        ("Web", "Live", "st-live"),
+        ("Web", "Im Browser", "st-live"),
+        ("Google Play", "Verfügbar", "st-live"),
+        ("App Store", "Verfügbar", "st-live"),
+        ("Web", "Jetzt spielen", "st-live"),
+        ("App Store", "Verfügbar", "st-live"),
+        ("Google Play", "Warteliste", "st-pending"),
+        ("Projektseite", "Live", "st-live"),
+        ("App Store", "Verfügbar", "st-live"),
+        ("Apple Books", "Roman ab 1. Dezember 2026", "st-live"),
+        ("Projektseite", "Live", "st-beta"),
+        ("TestFlight", "Im geschlossenen Test", "st-beta"),
+    ]
+
+
 def test_ovara_page_has_support_and_terms():
     response = client.get("/ovara", follow_redirects=False)
     assert response.status_code == 200
