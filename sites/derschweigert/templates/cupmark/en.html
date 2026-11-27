@@ -113,6 +113,7 @@
     .cm-two .card { padding: clamp(20px, 3vw, 28px); }
     .cm-two h3 { margin: 0 0 8px; font-size: 1.15rem; }
     .cm-two p { margin: 0; color: var(--ivory-dim); font-size: 0.95rem; }
+    .cm-two p + p { margin-top: 10px; }
     /* Listings use a small cup instead of a bullet. */
     body.cm-page .list { gap: 14px; }
     body.cm-page .list li { display: block; position: relative; padding-left: 34px; color: var(--ivory-dim); }
@@ -296,8 +297,9 @@
             <p>We keep the community on coffee: no self-staging, no feed, nothing to moderate. What is stored is what you brewed and how you rated it.</p>
           </div>
           <div class="card">
-            <h3>Private by default</h3>
-            <p>Only averages are shown. Your shelf, your cups, your notes stay with you – unless you explicitly release them to the community.</p>
+            <h3>Welcome by default</h3>
+            <p>Your ratings count towards the overall score – unless you would rather they did not. You can switch that off at any time.</p>
+            <p>Only averages are shown. Your shelf, your cups and your notes stay with you.</p>
           </div>
         </div>
       </section>
@@ -343,7 +345,7 @@
           </div>
           <div class="card">
             <h3>Your log stays yours</h3>
-            <p>Whether your ratings feed the averages is up to you. The default is no; one tap changes it, any time.</p>
+            <p>Only the average is shown. Your ratings feed it by default; whether they keep doing so is your call, and you can switch it off at any time.</p>
           </div>
         </div>
 
@@ -475,7 +477,7 @@
           </details>
           <details class="cm-faq__item">
             <summary>Do I decide whether my ratings count?</summary>
-            <p>Yes. The default is no. If you say yes, all your rated brews count, including earlier ones. If you withdraw, they leave the averages at the next successful nightly update – your own log stays unchanged.</p>
+            <p>Yes. By default all your rated brews count, including earlier ones. If you would rather not, switch it off in the app; your ratings then leave the averages at the next successful nightly update – your own log stays unchanged.</p>
           </details>
           <details class="cm-faq__item">
             <summary>What happens to my photos?</summary>
@@ -517,9 +519,9 @@
           <h3>What is stored, and why</h3>
           <ul class="list">
             <li><strong>Your account.</strong> You sign in with Apple. The app receives only a pseudonymous account identifier – no name and no email address. It is kept in an Amazon Cognito user record so that we know which data is yours (contract, Art. 6(1)(b) GDPR).</li>
-            <li><strong>Your log.</strong> Beans, brews, ratings, recipes and your settings (your language and your choice about contributing to averages), kept so the app works and syncs between your devices (Art. 6(1)(b) GDPR).</li>
+            <li><strong>Your log.</strong> Beans, brews, ratings, recipes and your settings (your language and whether your ratings feed the averages), kept so the app works and syncs between your devices (Art. 6(1)(b) GDPR).</li>
             <li><strong>Label photos.</strong> If you photograph a bag label, the photo is sent to our server and may be checked by us to confirm a bean for the shared catalogue. It is never shown to other users. The server removes all metadata, including any location, and keeps only the cleaned copy; the original is deleted automatically within about two days.</li>
-            <li><strong>Your choice about averages.</strong> Whether your ratings feed the community averages is stored with your profile. The default is no. If you say yes (consent, Art. 6(1)(a) GDPR), all your rated brews count towards averages, including earlier ones. If you withdraw, your ratings are removed from the community numbers at the next successful nightly update; your own log is not changed. You can change this in the app at any time.</li>
+            <li><strong>Your setting for averages.</strong> Your ratings feed the community averages by default; the setting is stored with your profile. The legal basis is our legitimate interest in reliable averages for all users (Art. 6(1)(f) GDPR). You can object at any time, in the app or by writing to us: your ratings then stop counting, including earlier ones, and they are removed from the community numbers at the next successful nightly update. Your own log is not changed.</li>
             <li><strong>Bean look-ups.</strong> When you scan a barcode, our server looks the number up in the Open Food Facts database and may keep the product's name, brand and image in the shared catalogue. The look-up is made by our server, not by your phone, so Open Food Facts does not see your device.</li>
             <li><strong>Technical logs.</strong> The servers keep the technical records that running a service needs (for example request errors) for two weeks, only to keep the service secure and working (Art. 6(1)(f) GDPR).</li>
           </ul>
@@ -570,7 +572,7 @@
           <ol>
             <li><strong>Beta.</strong> Cupmark is a tool to log and compare coffee. The test versions are a beta: features can change, break, and test data may be deleted before launch.</li>
             <li><strong>Account and age.</strong> You need an account for your shelf, brews, ratings and recipes; you sign in with Apple and are responsible for the device and the Apple account you use. Published averages can be viewed without an account. You confirm that you are at least 16 years old. You can delete your account in the app at any time.</li>
-            <li><strong>Your data.</strong> Your log stays yours. You allow us to store and process it as described in the privacy policy – and to include your ratings in averages only if you opt in.</li>
+            <li><strong>Your data.</strong> Your log stays yours. You allow us to store and process it as described in the privacy policy. Your ratings feed the averages by default, and you can object at any time.</li>
             <li><strong>Averages.</strong> You may view and quote published averages for your own use. Redistributing them as a dataset, or using them for third-party advertising or products, is not permitted without our consent.</li>
             <li><strong>Fair use.</strong> No attempts to read other people's data, to overload the service or to feed it false data on purpose.</li>
             <li><strong>Free during the start-up phase.</strong> Use is free during the start-up phase. Whoever joins within the first six months after the test starts keeps free access; it applies to the account you join with and is not transferable. The test starts with the first publicly available build on TestFlight. A later paid tier will be announced here with its own prices and terms before it starts; what is free during the start-up phase stays free.</li>

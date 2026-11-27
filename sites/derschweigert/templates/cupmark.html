@@ -113,6 +113,7 @@
     .cm-two .card { padding: clamp(20px, 3vw, 28px); }
     .cm-two h3 { margin: 0 0 8px; font-size: 1.15rem; }
     .cm-two p { margin: 0; color: var(--ivory-dim); font-size: 0.95rem; }
+    .cm-two p + p { margin-top: 10px; }
     /* Listings use a small cup instead of a bullet. */
     body.cm-page .list { gap: 14px; }
     body.cm-page .list li { display: block; position: relative; padding-left: 34px; color: var(--ivory-dim); }
@@ -297,8 +298,9 @@
             <p>Wir halten die Community beim Kaffee: keine Selbstinszenierung, kein Feed, nichts zu moderieren. Gespeichert wird, was du gebraut und wie du es bewertet hast.</p>
           </div>
           <div class="card">
-            <h3>Standardmäßig privat</h3>
-            <p>Gezeigt werden nur Durchschnittswerte. Dein Regal, deine Tassen, deine Notizen bleiben bei dir – es sei denn, du gibst sie ausdrücklich für die Community frei.</p>
+            <h3>Standardmäßig willkommen</h3>
+            <p>Deine Bewertungen fließen in die Gesamtbewertung ein – außer du möchtest es nicht. Die Möglichkeit hast du jederzeit.</p>
+            <p>Gezeigt werden nur Durchschnittswerte. Dein Regal, deine Tassen und deine Notizen bleiben bei dir.</p>
           </div>
         </div>
       </section>
@@ -344,7 +346,7 @@
           </div>
           <div class="card">
             <h3>Dein Protokoll bleibt deins</h3>
-            <p>Ob deine Bewertungen in die Durchschnittswerte einfließen, entscheidest du. Voreingestellt ist Nein; ein Häkchen genügt, jederzeit widerrufbar.</p>
+            <p>Gezeigt wird nur der Schnitt. Deine Bewertungen fließen standardmäßig hinein; ob sie es weiter tun, entscheidest du – jederzeit abschaltbar.</p>
           </div>
         </div>
 
@@ -475,8 +477,8 @@
             <p>Aus strukturierten Zubereitungen: Methode, Mahlgrad, Verhältnis, Wasser und acht Kriterien. Ein Profil entsteht erst, wenn mindestens fünf verschiedene Personen eine Bohne bewertet haben; es wird jede Nacht neu berechnet und ist höchstens einen Tag alt.</p>
           </details>
           <details class="cm-faq__item">
-            <summary>Bestimme ich, ob meine Bewertungen mitzählen?</summary>
-            <p>Ja. Voreingestellt ist Nein. Sagst du Ja, zählen alle deine bewerteten Zubereitungen mit, auch frühere. Widerrufst du, verschwinden sie bei der nächsten erfolgreichen nächtlichen Berechnung aus den Durchschnitten – dein eigenes Protokoll bleibt unverändert.</p>
+            <summary>Kann ich bestimmen, ob meine Bewertungen mitzählen?</summary>
+            <p>Ja. Standardmäßig zählen alle deine bewerteten Zubereitungen mit, auch frühere. Willst du das nicht, schaltest du es in der App ab; deine Bewertungen verschwinden dann bei der nächsten erfolgreichen nächtlichen Berechnung aus den Durchschnitten – dein eigenes Protokoll bleibt unverändert.</p>
           </details>
           <details class="cm-faq__item">
             <summary>Was passiert mit meinen Fotos?</summary>
@@ -518,9 +520,9 @@
           <h3>Was gespeichert wird und warum</h3>
           <ul class="list">
             <li><strong>Dein Konto.</strong> Du meldest dich mit Apple an. Die App erhält nur eine pseudonyme Kennung – weder Name noch E-Mail-Adresse. Gespeichert wird sie in einem Benutzereintrag von Amazon Cognito, damit wir wissen, welche Daten dir gehören (Art. 6 Abs. 1 lit. b DSGVO).</li>
-            <li><strong>Dein Protokoll.</strong> Bohnen, Zubereitungen, Bewertungen, Rezepte und deine Einstellungen (Sprache und deine Entscheidung zu Durchschnittswerten), damit die App funktioniert und deine Geräte abgleicht (Art. 6 Abs. 1 lit. b DSGVO).</li>
+            <li><strong>Dein Protokoll.</strong> Bohnen, Zubereitungen, Bewertungen, Rezepte und deine Einstellungen (Sprache und ob deine Bewertungen in Durchschnitte einfließen), damit die App funktioniert und deine Geräte abgleicht (Art. 6 Abs. 1 lit. b DSGVO).</li>
             <li><strong>Etikettenfotos.</strong> Fotografierst du ein Etikett, wird das Foto an unseren Server gesendet und kann von uns geprüft werden, um eine Bohne für den gemeinsamen Katalog zu bestätigen. Es wird anderen Nutzern nie gezeigt. Der Server entfernt alle Metadaten, auch einen Standort, und behält nur die bereinigte Kopie; das Original wird innerhalb von etwa zwei Tagen automatisch gelöscht.</li>
-            <li><strong>Deine Entscheidung zu Durchschnittswerten.</strong> Ob deine Bewertungen in die Community-Durchschnitte einfließen, wird mit deinem Profil gespeichert. Voreingestellt ist Nein. Sagst du Ja (Einwilligung, Art. 6 Abs. 1 lit. a DSGVO), zählen alle deine bewerteten Zubereitungen mit, auch frühere. Widerrufst du, werden deine Bewertungen bei der nächsten erfolgreichen nächtlichen Neuberechnung entfernt; dein eigenes Protokoll bleibt unverändert. Änderbar jederzeit in der App.</li>
+            <li><strong>Deine Einstellung zu Durchschnittswerten.</strong> Deine Bewertungen fließen standardmäßig in die Community-Durchschnitte ein; die Einstellung wird mit deinem Profil gespeichert. Rechtsgrundlage ist unser berechtigtes Interesse an belastbaren Durchschnittswerten für alle Nutzer (Art. 6 Abs. 1 lit. f DSGVO). Du kannst dieser Verarbeitung jederzeit widersprechen, in der App oder per Nachricht an uns: Dann zählen deine Bewertungen nicht mehr mit, auch frühere nicht, und sie werden bei der nächsten erfolgreichen nächtlichen Neuberechnung aus den Durchschnitten entfernt. Dein eigenes Protokoll bleibt unverändert.</li>
             <li><strong>Bohnen-Abfragen.</strong> Beim Scannen schlägt unser Server den Strichcode bei Open Food Facts nach und kann Name, Marke und Bild des Produkts im gemeinsamen Katalog speichern. Die Abfrage macht unser Server, nicht dein Telefon; Open Food Facts sieht dein Gerät also nicht.</li>
             <li><strong>Technische Protokolle.</strong> Die Server bewahren die technischen Aufzeichnungen auf, die der Betrieb eines Dienstes braucht (zum Beispiel Anfragefehler), zwei Wochen lang und nur, um den Dienst sicher und funktionsfähig zu halten (Art. 6 Abs. 1 lit. f DSGVO).</li>
           </ul>
@@ -571,7 +573,7 @@
           <ol>
             <li><strong>Beta.</strong> Cupmark ist ein Werkzeug, um Kaffee festzuhalten und zu vergleichen. Die Testversionen sind eine Beta: Funktionen können sich ändern, Fehler auftreten und Testdaten vor dem Start gelöscht werden.</li>
             <li><strong>Konto und Alter.</strong> Für Regal, Zubereitungen, Bewertungen und Rezepte brauchst du ein Konto; du meldest dich mit Apple an und bist für das Gerät und die Apple-Kennung verantwortlich, die du verwendest. Veröffentlichte Durchschnittswerte kannst du auch ohne Konto ansehen. Du bestätigst, dass du mindestens 16 Jahre alt bist. Dein Konto kannst du jederzeit in der App löschen.</li>
-            <li><strong>Deine Daten.</strong> Dein Protokoll bleibt deins. Du erlaubst uns, es so zu speichern und zu verarbeiten, wie es die Datenschutzerklärung beschreibt – und deine Bewertungen nur dann in Durchschnittswerte einzubeziehen, wenn du zustimmst.</li>
+            <li><strong>Deine Daten.</strong> Dein Protokoll bleibt deins. Du erlaubst uns, es so zu speichern und zu verarbeiten, wie es die Datenschutzerklärung beschreibt. Deine Bewertungen fließen dabei standardmäßig in Durchschnittswerte ein, solange du nicht widersprichst.</li>
             <li><strong>Durchschnittswerte.</strong> Veröffentlichte Durchschnittswerte darfst du für deinen eigenen Gebrauch ansehen und zitieren. Sie als Datensammlung weiterzuverbreiten oder für Werbung oder Produkte Dritter zu nutzen, ist ohne unsere Zustimmung nicht gestattet.</li>
             <li><strong>Faire Nutzung.</strong> Keine Versuche, Daten anderer zu lesen, den Dienst zu überlasten oder ihn absichtlich mit falschen Daten zu speisen.</li>
             <li><strong>Kostenlos in der Startphase.</strong> Die Nutzung ist in der Startphase kostenlos. Wer innerhalb der ersten sechs Monate nach dem Start des Tests beitritt, behält den kostenlosen Zugang; er gilt für das Konto, mit dem du beitrittst, und ist nicht übertragbar. Als Start des Tests gilt der erste öffentlich zugängliche Testbuild über TestFlight. Ein späterer Bezahltarif wird vor seiner Einführung mit eigenen Preisen und Bedingungen hier angekündigt; was in der Startphase kostenlos ist, bleibt kostenlos.</li>
