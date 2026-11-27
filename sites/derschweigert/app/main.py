@@ -84,6 +84,16 @@ def ovara_page() -> HTMLResponse:
     return HTMLResponse((TEMPLATES_DIR / "ovara.html").read_text(encoding="utf-8"))
 
 
+@app.get("/cupmark", response_class=HTMLResponse)
+def cupmark_page() -> HTMLResponse:
+    return HTMLResponse((TEMPLATES_DIR / "cupmark.html").read_text(encoding="utf-8"))
+
+
+@app.get("/cupmark/en", response_class=HTMLResponse)
+def cupmark_page_en() -> HTMLResponse:
+    return HTMLResponse((TEMPLATES_DIR / "cupmark" / "en.html").read_text(encoding="utf-8"))
+
+
 @app.get("/impressum", response_class=HTMLResponse)
 def impressum_page() -> HTMLResponse:
     return HTMLResponse((TEMPLATES_DIR / "impressum.html").read_text(encoding="utf-8"))

@@ -1,0 +1,577 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Cupmark | Coffee that many people taste</title>
+  <meta name="description" content="Cupmark is an iPhone app for specialty coffee: scan the bag, log the brew, rate it on eight fixed criteria – and once five people have rated a bean, their cups become an honest flavour profile for everyone." />
+  <meta name="theme-color" content="#F6EEE1" />
+  <meta property="og:type" content="website" />
+  <meta property="og:locale" content="en_GB" />
+  <meta property="og:title" content="Cupmark | Coffee that many people taste" />
+  <meta property="og:description" content="Scan, brew, rate – in seconds. Once five people have rated a bean, their cups become a profile for everyone." />
+  <meta property="og:url" content="https://www.derschweigert.de/cupmark/en" />
+  <meta property="og:image" content="https://www.derschweigert.de/static/projects/cupmark/cafe-friends.jpg" />
+  <meta name="twitter:card" content="summary_large_image" />
+  <link rel="alternate" hreflang="de" href="https://www.derschweigert.de/cupmark" />
+  <link rel="alternate" hreflang="en" href="https://www.derschweigert.de/cupmark/en" />
+  <link rel="alternate" hreflang="x-default" href="https://www.derschweigert.de/cupmark" />
+  <link rel="icon" href="/static/favicon.svg" type="image/svg+xml" />
+  <link rel="stylesheet" href="/static/styles.css" />
+  <style>
+    /* Cupmark runs on the app icon palette: espresso #3E271B on cream #ECD6B8,
+       laid over a single large marble plate (cover, never tiled). */
+    body.cm-page {
+      --ink-950: #33211A;
+      --ink-900: #3E271B;
+      --panel: rgba(255, 252, 246, 0.9);
+      --panel-flat: #FBF5E9;
+      --ivory: #33211A;
+      --ivory-dim: #5A4233;
+      --muted: #8A705C;
+      --brass: #A25E33;
+      --brass-light: #C08050;
+      --brass-deep: #6B4428;
+      --line: rgba(62, 39, 27, 0.18);
+      --line-soft: rgba(62, 39, 27, 0.10);
+      background-color: #F6EEE1;
+      background-image: none;
+      color: var(--ivory);
+    }
+    body.cm-page::before {
+      content: "";
+      position: fixed;
+      inset: 0;
+      z-index: 0;
+      pointer-events: none;
+      opacity: 1;
+      background:
+        linear-gradient(180deg, rgba(250, 245, 236, 0.18), rgba(247, 239, 228, 0.30)),
+        url("/static/projects/cupmark/marble.jpg") center / cover no-repeat;
+    }
+    body.cm-page::after {
+      content: "";
+      position: fixed;
+      inset: 0;
+      z-index: 0;
+      pointer-events: none;
+      background: radial-gradient(1100px 620px at 50% -12%, rgba(255, 255, 255, 0.22), transparent 72%);
+    }
+    body.cm-page > header,
+    body.cm-page > main,
+    body.cm-page > footer { position: relative; z-index: 1; }
+    body.cm-page .navbar { background: rgba(248, 242, 232, 0.84); }
+    body.cm-page .card { background: var(--panel); border-color: var(--line); box-shadow: 0 28px 60px -46px rgba(62, 39, 27, 0.85); }
+    body.cm-page .doc-card { background: #FFFDF7; }
+    body.cm-page .btn-primary {
+      background-image: linear-gradient(rgba(52, 32, 21, 0.88), rgba(40, 24, 16, 0.92)), url("/static/projects/cupmark/crema.jpg");
+      background-size: cover, cover;
+      background-position: center, center;
+      color: #F6E7D2;
+      border-color: rgba(62, 39, 27, 0.55);
+      box-shadow: 0 20px 40px -26px rgba(62, 39, 27, 0.9);
+    }
+    body.cm-page .btn-primary:hover { box-shadow: 0 24px 46px -24px rgba(62, 39, 27, 0.95); }
+    body.cm-page .btn-secondary { border-color: rgba(62, 39, 27, 0.32); color: var(--ivory); }
+    body.cm-page .section-head p + p { margin-top: 12px; }
+    .cm-hero { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.02fr); gap: clamp(26px, 4vw, 52px); align-items: center; padding-top: clamp(18px, 3vw, 36px); }
+    .cm-mark { display: block; width: 76px; height: 76px; border-radius: 19px; border: 1px solid rgba(255, 255, 255, 0.7); box-shadow: 0 22px 44px -26px rgba(62, 39, 27, 0.8); margin-bottom: 20px; }
+    .cm-hero h1 { margin: 10px 0 14px; font-size: clamp(2.6rem, 6vw, 4.2rem); line-height: 0.98; }
+    .cm-hero .lead { color: var(--ivory-dim); max-width: 38ch; margin: 0 0 10px; }
+    .cm-hero .lead strong { color: var(--ivory); }
+    .cm-cta-row { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; margin: 24px 0 0; }
+    .cm-cta-row .btn { padding: 14px 22px; }
+    .cm-textlink { display: inline-flex; align-items: center; gap: 8px; font-family: var(--font-mono); font-size: 0.75rem; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; color: var(--brass-deep); border-bottom: 1px solid rgba(107, 68, 40, 0.35); padding-bottom: 3px; }
+    .cm-textlink:hover { color: var(--brass); border-color: var(--brass); }
+    .cm-btn-cup { width: 18px; height: 18px; flex: none; }
+    .cm-pending { opacity: 0.92; cursor: not-allowed; }
+    .cm-todo { display: inline-block; margin: 14px 0 0; padding: 6px 10px; border: 1px dashed var(--brass); border-radius: 8px; font-family: var(--font-mono); font-size: 0.7rem; letter-spacing: 0.06em; color: var(--brass-deep); background: rgba(255, 253, 247, 0.7); }
+    .cm-photo { display: block; width: 100%; height: auto; border-radius: 16px; border: 1px solid rgba(255, 255, 255, 0.75); box-shadow: 0 44px 80px -52px rgba(62, 39, 27, 0.95); }
+    .cm-split { display: grid; grid-template-columns: minmax(0, 1.15fr) minmax(0, 0.85fr); gap: clamp(22px, 3vw, 40px); align-items: start; }
+    .cm-cards { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; margin-top: 26px; }
+    .cm-cards .card { padding: clamp(18px, 2.4vw, 24px); }
+    .cm-cards h3 { margin: 0 0 8px; font-size: 1.08rem; }
+    .cm-cards p { margin: 0; color: var(--ivory-dim); font-size: 0.93rem; }
+    .cm-two { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 18px; margin-top: 24px; }
+    .cm-two .card { padding: clamp(20px, 3vw, 28px); }
+    .cm-two h3 { margin: 0 0 8px; font-size: 1.15rem; }
+    .cm-two p { margin: 0; color: var(--ivory-dim); font-size: 0.95rem; }
+    /* Listings use a small cup instead of a bullet. */
+    body.cm-page .list { gap: 14px; }
+    body.cm-page .list li { display: block; position: relative; padding-left: 34px; color: var(--ivory-dim); }
+    body.cm-page .list li::before {
+      content: "";
+      position: absolute;
+      left: 0;
+      top: 1px;
+      width: 21px;
+      height: 21px;
+      border: 0;
+      border-radius: 0;
+      background: currentColor;
+      opacity: 0.62;
+      -webkit-mask: url("/static/projects/cupmark/cup.svg") center / contain no-repeat;
+      mask: url("/static/projects/cupmark/cup.svg") center / contain no-repeat;
+    }
+    body.cm-page .chips li { background: rgba(255, 252, 246, 0.82); border: 1px solid var(--line); color: var(--ivory-dim); }
+    /* Tags get the same cup instead of the studio's dot, so no bullet survives the theme. */
+    body.cm-page .chips li::before {
+      width: 15px;
+      height: 15px;
+      border-radius: 0;
+      background: currentColor;
+      opacity: 0.55;
+      -webkit-mask: url("/static/projects/cupmark/cup.svg") center / contain no-repeat;
+      mask: url("/static/projects/cupmark/cup.svg") center / contain no-repeat;
+    }
+    /* Tall café photographs sit in a split column; without a cap they dominate the page. */
+    .cm-split .cm-photo { max-width: 430px; margin-inline: auto; }
+    .cm-criteria { margin-top: 24px; }
+    .cm-shots { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: clamp(14px, 2vw, 22px); max-width: 680px; margin-inline: auto; }
+    .cm-phone {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 12px;
+      aspect-ratio: 9 / 19.2;
+      padding: 18px;
+      text-align: center;
+      width: 100%;
+      max-width: 220px;
+      justify-self: center;
+      border-radius: 30px;
+      border: 1px solid rgba(62, 39, 27, 0.34);
+      background: linear-gradient(180deg, #FFFBF3, #F4E9D8);
+      box-shadow: inset 0 0 0 7px rgba(62, 39, 27, 0.10), 0 34px 64px -46px rgba(62, 39, 27, 0.95);
+    }
+    .cm-phone::before {
+      content: "";
+      width: 40px;
+      height: 40px;
+      background: var(--brass);
+      opacity: 0.6;
+      -webkit-mask: url("/static/projects/cupmark/cup.svg") center / contain no-repeat;
+      mask: url("/static/projects/cupmark/cup.svg") center / contain no-repeat;
+    }
+    .cm-phone span { font-family: var(--font-mono); font-size: 0.66rem; letter-spacing: 0.14em; text-transform: uppercase; color: var(--brass-deep); }
+    .cm-price { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; margin-top: 26px; }
+    .cm-price .card { padding: clamp(20px, 2.6vw, 26px); }
+    .cm-price h3 { margin: 0 0 4px; font-size: 1.05rem; }
+    .cm-price .cm-price__tag { display: block; font-family: var(--font-display); font-size: 1.7rem; line-height: 1.1; color: var(--brass-deep); margin: 6px 0 12px; }
+    .cm-price p { margin: 0; color: var(--ivory-dim); font-size: 0.93rem; }
+    .cm-free-note { margin-top: 20px; padding: 16px 18px; border-radius: 12px; border: 1px solid var(--line); background: rgba(255, 252, 246, 0.86); color: var(--ivory-dim); font-size: 0.95rem; }
+    .cm-faq { display: grid; gap: 10px; }
+    .cm-faq__item { background: rgba(255, 252, 246, 0.92); border: 1px solid var(--line); border-radius: 14px; padding: 16px 20px; }
+    .cm-faq__item summary { display: flex; justify-content: space-between; align-items: baseline; gap: 16px; cursor: pointer; font-family: var(--font-display); font-weight: 700; font-size: 1.05rem; color: var(--ivory); list-style: none; }
+    .cm-faq__item summary::-webkit-details-marker { display: none; }
+    .cm-faq__item summary::after { content: "+"; flex: none; font-family: var(--font-mono); font-weight: 400; color: var(--brass-deep); }
+    .cm-faq__item[open] summary::after { content: "\2013"; }
+    .cm-faq__item p { margin: 10px 0 0; color: var(--ivory-dim); font-size: 0.95rem; }
+    .cm-faq__item p + p { margin-top: 8px; }
+    .cm-legal { margin-top: clamp(18px, 3vw, 26px); }
+    .cm-legal h3 { margin-top: 24px; }
+    .cm-legal p, .cm-legal li { font-size: 0.95rem; }
+    .cm-legal ol { padding-left: 1.2rem; display: grid; gap: 10px; }
+    /* Legal texts stay in the HTML for crawlers and the App Store, but start collapsed. */
+    .cm-legal-section { padding-top: clamp(22px, 3vw, 32px); }
+    .cm-collapse { padding: 0; margin-top: 0; }
+    .cm-collapse__summary { display: grid; gap: 8px; padding: clamp(20px, 3vw, 30px); cursor: pointer; list-style: none; }
+    .cm-collapse__summary::-webkit-details-marker { display: none; }
+    .cm-collapse__summary h2 { margin: 0; }
+    .cm-collapse__hint { display: inline-flex; align-items: center; gap: 8px; font-family: var(--font-mono); font-size: 0.7rem; letter-spacing: 0.12em; text-transform: uppercase; color: var(--brass-deep); }
+    .cm-collapse__hint::before { content: attr(data-closed); }
+    .cm-collapse[open] .cm-collapse__hint::before { content: attr(data-open); }
+    .cm-collapse__hint::after { content: "+"; font-size: 1rem; line-height: 1; }
+    .cm-collapse[open] .cm-collapse__hint::after { content: "\2013"; }
+    .cm-collapse__summary:hover .cm-collapse__hint { color: var(--brass); }
+    .cm-collapse__body { padding: 0 clamp(20px, 3vw, 30px) clamp(24px, 3vw, 32px); }
+    .cm-collapse__body > h3:first-child { margin-top: 4px; }
+    .cm-lang { font-family: var(--font-mono); font-size: 0.72rem; letter-spacing: 0.12em; text-transform: uppercase; }
+    @media (max-width: 980px) {
+      .cm-cards, .cm-price { grid-template-columns: 1fr 1fr; }
+      .cm-cards .card:last-child { grid-column: 1 / -1; }
+      .cm-price .card:last-child { grid-column: 1 / -1; }
+    }
+    @media (max-width: 860px) {
+      .cm-hero, .cm-split { grid-template-columns: 1fr; }
+      .cm-hero__art { max-width: 640px; }
+      .cm-shots { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+    }
+    @media (max-width: 640px) {
+      .cm-cards, .cm-two, .cm-price { grid-template-columns: 1fr; }
+      .cm-shots { grid-template-columns: 1fr; max-width: 300px; margin: 0 auto; }
+    }
+  </style></head>
+<body class="cm-page">
+  <header class="navbar">
+    <div class="container nav-inner">
+      <a href="/" class="brand" aria-label="DerSchweigert – home"><img src="/static/logo-mark.svg" alt="" width="38" height="38" /><span class="brand-name"><span class="brand-der">Der</span><span class="brand-main">Schweigert</span></span></a>
+      <button class="nav-toggle" type="button" aria-label="Open menu" aria-expanded="false" aria-controls="primary-nav"><span></span></button>
+      <nav class="nav-links" id="primary-nav" aria-label="Main navigation">
+        <a href="/">Start</a>
+        <a href="#community">Community</a>
+        <a href="#app">App</a>
+        <a href="#test">Test</a>
+        <a href="#faq">FAQ</a>
+        <a href="#privacy">Privacy</a>
+        <a class="nav-cta cm-lang" href="/cupmark" hreflang="de" lang="de">Deutsch</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="page-content">
+    <div class="container">
+      <div class="cm-hero">
+        <div>
+          <img class="cm-mark" src="/static/projects/cupmark-icon.png" alt="Cupmark app icon: a cream coffee bean on dark brown" width="76" height="76" decoding="async" />
+          <span class="eyebrow">Specialty coffee · community</span>
+          <h1>Cupmark</h1>
+          <p class="lead"><strong>Every cup you log makes the bean readable for everyone.</strong></p>
+          <p class="lead">Scan, brew, rate – within seconds. Once five people have logged a bean, their cups add up to something a review never gives you.</p>
+          <p class="cm-cta-row">
+            <span class="btn btn-primary cm-pending"><svg class="cm-btn-cup" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M4.5 10.5h11v3.2a4.3 4.3 0 0 1-4.3 4.3H8.8a4.3 4.3 0 0 1-4.3-4.3z"/><path d="M15.5 11.4h1.6a2.4 2.4 0 0 1 0 4.8h-1.6"/><path d="M3.2 20.4h13.6"/></svg>Taste along, free</span>
+            <a class="cm-textlink" href="#app">How it works</a>
+          </p>
+          <p class="cm-todo">TODO: add the public TestFlight link</p>
+          <ul class="chips" style="margin-top: 22px;">
+            <li>Free while we start</li>
+            <li>From 5 people: community profile</li>
+            <li>Focused on coffee</li>
+          </ul>
+        </div>
+        <div class="cm-hero__art">
+          <img class="cm-photo" src="/static/projects/cupmark/cafe-friends.jpg" alt="Two friends laughing over their coffee at a marble table, a phone lying face down beside the cups" width="1536" height="864" decoding="async" />
+        </div>
+      </div>
+
+      <section class="section" id="community">
+        <div class="section-head">
+          <span class="eyebrow">Community</span>
+          <h2>What many people taste is more honest than an opinion.</h2>
+          <p>Cupmark does not collect stars or comments. It collects structured brews: method, grind, ratio, water, eight criteria. Once five different people have rated a bean, that becomes a profile for it – a picture of how it really tastes and how it best comes out.</p>
+          <p>Cupmark does not want to be another social network: no likes, no followers, no comments, no timeline. What remains are beans, brews and what many people make of them.</p>
+        </div>
+
+        <div class="cm-cards">
+          <div class="card">
+            <h3>The average, not the loudest voice</h3>
+            <p>Only what at least five different people have experienced is shown. No single log, no stage for the strongest opinion.</p>
+          </div>
+          <div class="card">
+            <h3>Give and take</h3>
+            <p>Rate a bean yourself and you see its community average. The map grows with every cup – no ads, no incentive to shout.</p>
+          </div>
+          <div class="card">
+            <h3>Your log stays yours</h3>
+            <p>Whether your ratings feed the averages is up to you. The default is no; one tap changes it, any time.</p>
+          </div>
+        </div>
+
+        <div class="cm-split" style="margin-top: 34px;">
+          <div>
+            <ul class="list">
+              <li><strong>You scan and rate.</strong> The bag you were going to drink anyway – logged once, in under a minute.</li>
+              <li><strong>We rebuild every night.</strong> From five people the average appears; it is at most a day old and never built from a single cup.</li>
+              <li><strong>Everyone sees the profile, nobody sees your log.</strong> No names, no order, no leaderboard of heavy drinkers.</li>
+            </ul>
+          </div>
+          <div>
+            <img class="cm-photo" src="/static/projects/cupmark/cafe-phone.jpg" alt="Close-up: a hand holds a phone with its back to the camera, a flat white stands on marble beside it" width="1152" height="1440" loading="lazy" decoding="async" />
+          </div>
+        </div>
+      </section>
+
+      <section class="section" id="app">
+        <div class="section-head">
+          <span class="eyebrow">The app</span>
+          <h2>A brewing and tasting log, effortlessly.</h2>
+          <p>Cupmark is an iPhone app (iOS 17 or later, English and German) for people who care more about the bean than the cup around it.</p>
+        </div>
+        <ul class="list">
+          <li><strong>Scan.</strong> Read the barcode on the bag. Known beans fill in by themselves; unknown ones you describe from pick lists.</li>
+          <li><strong>Brew.</strong> The built-in timer holds method, dose, grind and water: chosen, stepped, stopped.</li>
+          <li><strong>Rate.</strong> Eight fixed criteria and a closed vocabulary of flavour notes. That keeps every rating comparable.</li>
+          <li><strong>Repeat.</strong> Brew a recipe again with one tap. Your history, recipes and own statistics are free.</li>
+          <li><strong>Without a connection.</strong> Scan, brew and rate offline; it syncs when you are back online. CSV export any time.</li>
+        </ul>
+        <ul class="chips cm-criteria" aria-label="The eight rating criteria">
+          <li>Aroma</li>
+          <li>Flavour</li>
+          <li>Aftertaste</li>
+          <li>Acidity</li>
+          <li>Body</li>
+          <li>Sweetness</li>
+          <li>Balance</li>
+          <li>Overall</li>
+        </ul>
+        <div class="cm-two">
+          <div class="card">
+            <h3>Coffee only</h3>
+            <p>We keep the community on coffee: no self-staging, no feed, nothing to moderate. What is stored is what you brewed and how you rated it.</p>
+          </div>
+          <div class="card">
+            <h3>Private by default</h3>
+            <p>Only averages are shown. Your shelf, your cups, your notes stay with you – unless you explicitly release them to the community.</p>
+          </div>
+        </div>
+      </section>
+
+      <section class="section" id="roasters">
+        <div class="section-head">
+          <span class="eyebrow">Roasters</span>
+          <h2>Beans from people you can meet.</h2>
+          <p>Specialty means someone decided which bean gets roasted, for how long and for whom. Cupmark introduces those people – small roasteries near you, curated rather than arbitrary, with no ad slots and no paid ranking.</p>
+        </div>
+        <div class="cm-split">
+          <div>
+            <ul class="list">
+              <li><strong>Curated, not arbitrary.</strong> A place goes to roasteries that roast their own beans and disclose origin, process and roast – no paid slots, no order by budget.</li>
+              <li><strong>Straight from the roaster.</strong> Every bean links to the roastery itself, not to a middleman. You buy where it is roasted.</li>
+              <li><strong>Feedback that arrives.</strong> Roasteries see how their beans are actually brewed and rated – as an average, never as an individual profile.</li>
+            </ul>
+            <p class="cm-free-note">In the making: we are talking to the first roasteries now. As soon as one is on board it appears here, with its beans and its profile.</p>
+            <p class="cm-todo">TODO: add the roaster list once the first partners have agreed</p>
+          </div>
+          <div>
+            <img class="cm-photo" src="/static/projects/cupmark/roastery.jpg" alt="Hands over the cooling tray of a small roastery, holding a bowl of freshly roasted beans" width="1152" height="1440" loading="lazy" decoding="async" />
+          </div>
+        </div>
+      </section>
+
+      <section class="section" id="store">
+        <div class="section-head">
+          <span class="eyebrow">In the shop</span>
+          <h2>First see what others taste. Then buy.</h2>
+          <p>In front of the shelf, the bag in your hand: one scan shows whether the community already knows this bean – its average, the method that suits it, proven recipes. No stars, no ad copy, just brews by people who actually made them.</p>
+        </div>
+        <div class="cm-split">
+          <div>
+            <img class="cm-photo" src="/static/projects/cupmark/in-store.jpg" alt="A woman in her early thirties holds a coffee bag turned away from the camera and a phone in a shop aisle, shelves of coffee bags behind her" width="1152" height="1440" loading="lazy" decoding="async" />
+          </div>
+          <div>
+            <ul class="list">
+              <li><strong>Scan.</strong> Read the barcode and see whether this bean has data yet – right there in the shop.</li>
+              <li><strong>Compare.</strong> The community average, the methods that suit it and the recipes others have repeated.</li>
+              <li><strong>Decide.</strong> Buy it because it fits – or leave it and put the money into a bean that fits your taste.</li>
+            </ul>
+          </div>
+        </div>
+        <div class="cm-two">
+          <div class="card">
+            <h3>What you see</h3>
+            <p>The bean's profile: how it scores overall, which method gets the best out of it and which recipes others have repeated.</p>
+          </div>
+          <div class="card">
+            <h3>What you do not see</h3>
+            <p>Anybody's log. No names, no comments, no paid placement – and no number where there are no real ratings yet.</p>
+          </div>
+        </div>
+      </section>
+
+      <section class="section" id="inside">
+        <div class="section-head">
+          <span class="eyebrow">A look inside</span>
+          <h2>This is what it looks like.</h2>
+          <p>Three screens from the app: shelf, brew, community profile. The captures follow as soon as the test build flies.</p>
+        </div>
+        <div class="cm-shots">
+          <div class="cm-phone" role="img" aria-label="Placeholder for the shelf screenshot"><span>Shelf<br />Screenshot follows</span></div>
+          <div class="cm-phone" role="img" aria-label="Placeholder for the brew screenshot"><span>Brew<br />Screenshot follows</span></div>
+          <div class="cm-phone" role="img" aria-label="Placeholder for the community profile screenshot"><span>Community profile<br />Screenshot follows</span></div>
+        </div>
+        <p class="cm-todo">TODO: add real screenshots once a testable build exists</p>
+      </section>
+
+      <section class="section" id="test">
+        <div class="cm-split">
+          <div>
+            <div class="section-head">
+              <span class="eyebrow">Taste along</span>
+              <h2>The test runs through TestFlight.</h2>
+              <p>Cupmark is in a closed test. You need an iPhone with iOS 17 or later and the free TestFlight app from Apple.</p>
+            </div>
+            <p class="cm-cta-row"><span class="btn btn-primary cm-pending">Taste along, free</span></p>
+            <p class="cm-todo">TODO: insert the TestFlight link once it exists</p>
+            <ul class="list" style="margin-top: 26px;">
+              <li>Scan a few bags you really have at home, and log a brew the way you normally make it.</li>
+              <li>Try it without a connection, then let it sync.</li>
+              <li>Tell us where it snagged – through "Send Beta Feedback" in TestFlight or by mail to <a href="mailto:info@derschweigert.de?subject=Cupmark%20test">info@derschweigert.de</a>.</li>
+            </ul>
+            <p style="margin-top: 18px; color: var(--ivory-dim);">The test builds talk to a test server; entries made during the test may be deleted before launch. Taking part and sending feedback run through TestFlight, a service by Apple – Apple's terms and privacy notice apply there.</p>
+          </div>
+          <div>
+            <img class="cm-photo" src="/static/projects/cupmark/cafe-sip.jpg" alt="Close-up: a man in his thirties smelling a handmade ceramic cup, a phone lying on the marble counter" width="1152" height="1440" loading="lazy" decoding="async" />
+          </div>
+        </div>
+      </section>
+
+      <section class="section" id="price">
+        <div class="section-head">
+          <span class="eyebrow">Cost</span>
+          <h2>Nothing for now. And for the first ones it stays that way.</h2>
+          <p>Cupmark starts free – with everything the app can do. Whoever joins early keeps that access.</p>
+        </div>
+        <div class="cm-price">
+          <div class="card">
+            <h3>Start-up phase</h3>
+            <span class="cm-price__tag">€0</span>
+            <p>Shelf, brews, ratings, your own statistics, recipes, CSV export, offline. No subscription, no limit, no ads.</p>
+          </div>
+          <div class="card">
+            <h3>The first six months</h3>
+            <span class="cm-price__tag">free for good</span>
+            <p>Whoever joins within the first six months after the test starts keeps free access – even if a paid tier is introduced later.</p>
+          </div>
+          <div class="card">
+            <h3>After that</h3>
+            <span class="cm-price__tag">price open</span>
+            <p>A paid tier is planned once the community data carries itself. The price is not set yet; it will follow comparable specialty apps on the market – and will be announced here first.</p>
+          </div>
+        </div>
+        <p class="cm-free-note">What is free today stays free. The paid tier is for the data on top, not a door in front of your own log.</p>
+      </section>
+
+      <section class="section" id="faq">
+        <div class="section-head">
+          <span class="eyebrow">FAQ</span>
+          <h2>Short answers.</h2>
+          <p>What people ask most – the answers cover the test and the start-up phase.</p>
+        </div>
+        <div class="cm-faq">
+          <details class="cm-faq__item">
+            <summary>What does Cupmark cost?</summary>
+            <p>Nothing during the start-up phase. Whoever joins within the first six months after the test starts keeps free access for good. A paid tier is planned afterwards; its price and terms are not settled yet and will be announced here before it applies.</p>
+          </details>
+          <details class="cm-faq__item">
+            <summary>Do I need an account?</summary>
+            <p>Not for viewing published averages. For your shelf, brews, ratings and recipes you sign in with Apple; that creates only a pseudonymous identifier, with no name and no email address.</p>
+          </details>
+          <details class="cm-faq__item">
+            <summary>Where do the averages come from?</summary>
+            <p>From structured brews: method, grind, ratio, water and eight criteria. A profile appears only once at least five different people have rated a bean; it is rebuilt every night and is at most a day old.</p>
+          </details>
+          <details class="cm-faq__item">
+            <summary>Do I decide whether my ratings count?</summary>
+            <p>Yes. The default is no. If you say yes, all your rated brews count, including earlier ones. If you withdraw, they leave the averages at the next successful nightly update – your own log stays unchanged.</p>
+          </details>
+          <details class="cm-faq__item">
+            <summary>What happens to my photos?</summary>
+            <p>A label photo goes to our server so we can confirm a bean for the catalogue. All metadata is removed, the original is deleted after about two days, and the photo is never shown to others. Brew photos stay on your device.</p>
+          </details>
+          <details class="cm-faq__item">
+            <summary>Does Cupmark work offline?</summary>
+            <p>Yes. Scanning, brewing and rating work without a connection; everything syncs when you are back online. You can export your data as CSV at any time.</p>
+          </details>
+          <details class="cm-faq__item">
+            <summary>Is Cupmark a social network?</summary>
+            <p>No. No likes, no followers, no comments, no timeline. What remains are beans, brews and what many people make of them.</p>
+          </details>
+          <details class="cm-faq__item">
+            <summary>I run a roastery – how do I get listed?</summary>
+            <p>Write to <a href="mailto:info@derschweigert.de?subject=Cupmark%20roastery">info@derschweigert.de</a>. A place goes to roasteries that roast their own beans and disclose origin, process and roast. There are no paid slots.</p>
+          </details>
+          <details class="cm-faq__item">
+            <summary>What happens if I delete my account?</summary>
+            <p>Your sign-in record, entries, ratings and profile are removed immediately, as is every version of your label photos. Copies in backups can remain for up to 35 days or about 13 months and are removed again on any restore. Your ratings leave the averages at the next nightly update.</p>
+          </details>
+        </div>
+      </section>
+
+      <section class="section cm-legal-section" id="privacy">
+        <details class="content-card doc-card cm-legal cm-collapse">
+          <summary class="cm-collapse__summary">
+            <span class="eyebrow">Privacy</span>
+            <h2>Privacy policy</h2>
+            <span class="cm-collapse__hint" data-closed="Open" data-open="Close"></span>
+          </summary>
+          <div class="cm-collapse__body">
+          <h3>Who is responsible</h3>
+          <p>Urs Schweigert, Am Sonnenhang 12, 85235 Pfaffenhofen a.d. Glonn, Germany, is the operator. Contact for data protection and for all requests: <a href="mailto:info@derschweigert.de">info@derschweigert.de</a>. Further details are in the <a href="/impressum">legal notice</a>.</p>
+
+          <h3>What the app does not do</h3>
+          <p>No advertising, no tracking, no analytics, no crash reporting and no third-party software development kits for any of these. The app asks for no name, no email address, no location and no contacts.</p>
+
+          <h3>What is stored, and why</h3>
+          <ul class="list">
+            <li><strong>Your account.</strong> You sign in with Apple. The app receives only a pseudonymous account identifier – no name and no email address. It is kept in an Amazon Cognito user record so that we know which data is yours (contract, Art. 6(1)(b) GDPR).</li>
+            <li><strong>Your log.</strong> Beans, brews, ratings, recipes and your settings (your language and your choice about contributing to averages), kept so the app works and syncs between your devices (Art. 6(1)(b) GDPR).</li>
+            <li><strong>Label photos.</strong> If you photograph a bag label, the photo is sent to our server and may be checked by us to confirm a bean for the shared catalogue. It is never shown to other users. The server removes all metadata, including any location, and keeps only the cleaned copy; the original is deleted automatically within about two days.</li>
+            <li><strong>Your choice about averages.</strong> Whether your ratings feed the community averages is stored with your profile. The default is no. If you say yes (consent, Art. 6(1)(a) GDPR), all your rated brews count towards averages, including earlier ones. If you withdraw, your ratings are removed from the community numbers at the next successful nightly update; your own log is not changed. You can change this in the app at any time.</li>
+            <li><strong>Bean look-ups.</strong> When you scan a barcode, our server looks the number up in the Open Food Facts database and may keep the product's name, brand and image in the shared catalogue. The look-up is made by our server, not by your phone, so Open Food Facts does not see your device.</li>
+            <li><strong>Technical logs.</strong> The servers keep the technical records that running a service needs (for example request errors) for two weeks, only to keep the service secure and working (Art. 6(1)(f) GDPR).</li>
+          </ul>
+
+          <h3>Looking without an account</h3>
+          <p>Viewing published averages needs no account, and without an account no user profile is created. For that request your device sends the barcode and the technical connection data to our server; the two-week technical log period applies to it.</p>
+
+          <h3>Community averages</h3>
+          <p>Averages are shown only when at least five different people have rated a bean. No individual log, rating or profile is shown to anyone else. Averages are rebuilt every night, so they are usually up to a day old; if the nightly update fails for more than three days, no averages are shown. When you delete a brew or your account, its ratings are removed from the averages at the next successful nightly update. Published averages are visible to everyone – in the app and on this page. Roasteries see only these published values, never an individual log.</p>
+
+          <h3>Where it is processed</h3>
+          <p>The data is stored with Amazon Web Services in Frankfurt, Germany (region eu-central-1). Amazon Web Services EMEA SARL is our processor. Sign in with Apple is provided by Apple, which handles the sign-in as a separate controller under its own privacy policy. We do not send app data to any other recipient, and we do not move app data out of the EU ourselves.</p>
+
+          <h3>How long it is kept, and deleting it</h3>
+          <p>Your data is kept while your account exists. In the app, Settings has a button to delete your account. It removes your sign-in account record, shelf entries, brews, ratings, recipes and profile, and every version of the label photos you uploaded, straight away. Photos of beans that were already verified stay in the shared catalogue for 90 days after the verification (up to about four months counting older versions), but they are no longer linked to you.</p>
+          <p>Backups: after a deletion, copies can remain in the database's point-in-time recovery for up to 35 days and in weekly exports for up to about 13 months. A deletion log makes any restore from a backup remove deleted accounts again before the data is used. Each entry holds only the account identifier, the identifiers of its label photos and the time of deletion; entries are deleted after 400 days (up to about 14 months counting older versions). Short-lived technical records, such as daily usage counters and unfinished uploads, expire by themselves.</p>
+
+          <h3>Your rights</h3>
+          <p>You can ask for access to your data, correction, erasure, restriction of processing, a copy in a common format and you can object to processing based on legitimate interests. The app already offers a CSV export and account deletion; for anything else write to the address above. You may withdraw consent at any time. You also have the right to complain to a data protection authority, in particular in the country where you live or work; the authority responsible for us is the Bavarian State Office for Data Protection Supervision (BayLDA), Promenade 18, 91522 Ansbach, Germany.</p>
+
+          <h3>Camera</h3>
+          <p>The app uses the camera only to read a barcode, which happens on your device, and, if you choose, to photograph a label or a brew. Only a label photo you choose to take is uploaded. Brew photos stay on the device. If you turn on "Include brew photos in the device backup" in Settings, Apple includes them in the backup of that phone; that backup is Apple's service under Apple's terms, and Cupmark does not receive the photos. The setting is off by default.</p>
+
+          <h3>Catalogue data</h3>
+          <p>Product data and images come from Open Food Facts and are available under the Open Database License (ODbL): <a href="https://world.openfoodfacts.org/legal" target="_blank" rel="noopener noreferrer">openfoodfacts.org/legal</a>. We keep only the details needed to identify a bean.</p>
+
+          <h3>This page</h3>
+          <p>When you open this page, Amazon Web Services (AWS) as our hosting provider processes the technically necessary connection data (including IP address, time, requested file and browser identifier) in order to deliver the page and to defend against attacks (Art. 6(1)(f) GDPR). We keep no access logs of our own and do not analyse that data. The page sets no cookies, loads no fonts, scripts or images from third parties and uses no analytics or advertising tools. The photographs on this page were generated for it.</p>
+          <p>If you write to us by email, we process your details solely to answer your request (Art. 6(1)(b) or (f) GDPR).</p>
+
+          <h3>Changes</h3>
+          <p>If this policy changes, the new version appears here with its date. Last updated: 27 November 2026.</p>
+          </div>
+        </details>
+      </section>
+
+      <section class="section cm-legal-section" id="terms">
+        <details class="content-card doc-card cm-legal cm-collapse">
+          <summary class="cm-collapse__summary">
+            <span class="eyebrow">Terms</span>
+            <h2>Terms for the test</h2>
+            <span class="cm-collapse__hint" data-closed="Open" data-open="Close"></span>
+          </summary>
+          <div class="cm-collapse__body">
+          <p><strong>Last updated: 27 November 2026</strong></p>
+
+          <p>Our <a href="/nutzungsbedingungen">Shared Terms of Use</a> apply in addition. They cover the provider, permitted use, rights to content, liability and governing law. For Cupmark the following also applies:</p>
+          <ol>
+            <li><strong>Beta.</strong> Cupmark is a tool to log and compare coffee. The test versions are a beta: features can change, break, and test data may be deleted before launch.</li>
+            <li><strong>Account and age.</strong> You need an account for your shelf, brews, ratings and recipes; you sign in with Apple and are responsible for the device and the Apple account you use. Published averages can be viewed without an account. You confirm that you are at least 16 years old. You can delete your account in the app at any time.</li>
+            <li><strong>Your data.</strong> Your log stays yours. You allow us to store and process it as described in the privacy policy – and to include your ratings in averages only if you opt in.</li>
+            <li><strong>Averages.</strong> You may view and quote published averages for your own use. Redistributing them as a dataset, or using them for third-party advertising or products, is not permitted without our consent.</li>
+            <li><strong>Fair use.</strong> No attempts to read other people's data, to overload the service or to feed it false data on purpose.</li>
+            <li><strong>Free during the start-up phase.</strong> Use is free during the start-up phase. Whoever joins within the first six months after the test starts keeps free access; it applies to the account you join with and is not transferable. The test starts with the first publicly available build on TestFlight. A later paid tier will be announced here with its own prices and terms before it starts; what is free during the start-up phase stays free.</li>
+            <li><strong>End of the test.</strong> You can stop at any time. We may end the test or a test account, for example when a test round finishes.</li>
+          </ol>
+          </div>
+        </details>
+      </section>
+    </div>
+  </main>
+
+  <footer class="footer">
+    <div class="container footer-inner">
+      <div>Urs Schweigert</div>
+      <nav aria-label="Footer navigation">
+        <a href="/impressum">Legal notice</a>
+        <a href="/datenschutz">Privacy</a>
+        <a href="/nutzungsbedingungen">Terms of use</a>
+        <a href="mailto:info@derschweigert.de">Contact</a>
+        <a href="/cupmark" hreflang="de" lang="de">Deutsch</a>
+      </nav>
+    </div>
+  </footer>
+  <script src="/static/app.js"></script>
+</body>
+</html>
