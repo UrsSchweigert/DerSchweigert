@@ -129,7 +129,7 @@ def test_ovara_page_has_support_and_terms():
     assert "The Man the Tide Brought In" in response.text
     assert 'id="support"' in response.text
     assert 'id="terms"' in response.text
-    assert "https://books.apple.com/us/book/id6838287964" in response.text
+    assert "https://books.apple.com/de/book/the-man-the-tide-brought-in/id6838287964?l=en-GB" in response.text
     assert "1 December 2026" in response.text
 
 
@@ -152,7 +152,7 @@ def test_homepage_projects_focus_and_structure():
     assert "Geschlossener Test" not in html
     # The small hero tiles say where each product is available, not just a status.
     tags = re.findall(r'<span class="work-tile__tag">([^<]+)</span>', html)
-    assert tags == ["Web", "Web · iOS · Android", "Web · iOS", "iOS · Apple Books · Bald", "iOS · Im Test"]
+    assert tags == ["Web", "Web · iOS · Android", "Web · iOS · Android", "iOS · Apple Books · Bald", "iOS · Im Test"]
     # Every tile names its product, so the mosaic reads without decoding the artwork.
     names = re.findall(r'<span class="work-tile__name">([^<]+)</span>', html)
     assert names == ["landhauscheck.com", "Buchstabenzeit", "Arithmo Slayer", "Ovara", "Cupmark"]
@@ -161,7 +161,7 @@ def test_homepage_projects_focus_and_structure():
     assert 'href="https://arithmoslayer.de"' in html
     assert 'href="/ovara"' in html
     assert 'href="/cupmark"' in html
-    assert 'href="https://books.apple.com/us/book/id6838287964"' in html
+    assert 'href="https://books.apple.com/de/book/the-man-the-tide-brought-in/id6838287964"' in html
 
     # Verify all project artwork is present, referenced, and dimensioned.
     assets_dir = Path(__file__).resolve().parents[1] / "static" / "projects"
