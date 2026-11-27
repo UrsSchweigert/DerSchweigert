@@ -94,9 +94,17 @@ def test_cupmark_pages_carry_operator_and_both_legal_sections():
         assert 'hreflang="en"' in html and 'hreflang="de"' in html
 
 
-def test_cupmark_pages_lead_with_the_community_and_state_the_free_promise():
-    # Community data and the six-month promise are the reasons to join now; both are
-    # commitments made to readers, so they are pinned here in each language.
+def test_cupmark_pages_read_in_order_and_state_the_free_promise():
+    # The order is the argument the page makes: what the app records, who roasts the
+    # beans, what the community makes of it, and only then the buy. Community data and
+    # the six-month promise are commitments made to readers, so both are pinned too.
+    sections = {
+        "/cupmark": ["app", "roester", "community", "kauf", "einblick", "test", "preis", "faq", "datenschutz", "bedingungen"],
+        "/cupmark/en": ["app", "roasters", "community", "store", "inside", "test", "price", "faq", "privacy", "terms"],
+    }
+    for path, expected in sections.items():
+        html = client.get(path, follow_redirects=False).text
+        assert re.findall(r'<section class="section[^"]*" id="([^"]+)"', html) == expected, path
     expectations = {
         "/cupmark": ("id=\"community\"", "id=\"roester\"", "id=\"kauf\"", "id=\"faq\"", "sechs Monate", "Screenshot folgt", "27. November 2026", 'id="einblick"'),
         "/cupmark/en": ("id=\"community\"", "id=\"roasters\"", "id=\"store\"", "id=\"faq\"", "six months", "Screenshot follows", "27 November 2026", 'id="inside"'),
