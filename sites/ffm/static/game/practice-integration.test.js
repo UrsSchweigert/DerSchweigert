@@ -13,6 +13,8 @@ import { resetLevelAttempt } from './campaign-progress.js';
 import { getSkillIntro } from './skill-intro.js';
 import { isAbilityBandStart } from './combo-abilities.js';
 import { generateShapesProblem } from './shapes.js';
+import { BASICS_SETS, basicsFactorRange, basicsSetFor, basicsSetUnlocked } from './basics-math.js';
+import { formatBasicsResultTime } from './basics-results.js';
 import { getArithmeticOptionCount, revealQuestion } from './levels.js';
 import { PRACTICE_KINDS } from './practice-session.js';
 import { setLocale, t } from './i18n.js';
@@ -161,7 +163,10 @@ test('the training tab explains the selected level from its authorized config', 
   setLocale('en', { persist: false });
 
   const html = readFileSync(new URL('../index.html', import.meta.url), 'utf8');
-  assert.match(html, /<select id="practice-level-select"><\/select>\s*<p id="practice-level-hint" class="practice-level-hint" role="status" aria-live="polite"><\/p>/);
+  // The Basics Math exercise-set selector sits between the level selector and
+  // the one shared hint line, both hidden until that mode is chosen.
+  assert.match(html, /<select id="practice-level-select"><\/select>\s*<label for="practice-set" id="practice-set-label"[^>]*hidden>Exercise set<\/label>\s*<select id="practice-set" hidden><\/select>[\s\S]*?<div id="practice-duration-row"[^>]*hidden>[\s\S]*?<select id="practice-duration"><\/select>[\s\S]*?<p id="practice-level-hint" class="practice-level-hint" role="status" aria-live="polite"><\/p>/);
+  assert.match(html, /<option value="basics" data-i18n="practice.kind.basics">Basics math<\/option>/);
   assert.match(source, /practiceLevelSelect\?\.addEventListener\('change',[\s\S]*?updatePracticeLevelHint\(\)/);
   assert.match(source, /practiceKindSelect\?\.addEventListener\('change',[\s\S]*?updatePracticeLevelHint\(\)/);
   assert.match(source, /onLocaleChange\(\(\) => \{[\s\S]*?updatePracticeLevelHint\(\)/);
@@ -173,6 +178,281 @@ test('the training tab explains the selected level from its authorized config', 
 
   // Only one hint element: the web and app builds share the markup.
   assert.equal((html.match(/id="practice-level-hint"/g) ?? []).length, 1);
+});
+
+test('Basics Math explains its exercise set and its unlock', async () => {
+  const hint = { textContent: '' };
+  let synced = 0;
+  const context = {
+    practiceLevelHint: hint,
+    practiceKindSelect: { value: 'basics' },
+    practiceSetSelect: { value: 'tables-1-15' },
+    practiceUnlocks: { campaign1: true, campaign2: false },
+    PRACTICE_GATE_KEYS: {
+      campaign1: 'practice.setUnlock.campaign1', campaign2: 'practice.setUnlock.campaign2',
+    },
+    PRACTICE_GATE_NAME_KEYS: {
+      campaign1: 'practice.setGate.campaign1', campaign2: 'practice.setGate.campaign2',
+    },
+    BASICS_SETS, basicsSetFor, basicsSetUnlocked, basicsFactorRange,
+    levelHintGeneration: 0,
+    practiceSetName: id => t(`practice.set.${basicsSetFor(id).id}`),
+    practiceDurationMinutes: () => 15,
+    practiceTables: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10],
+    practiceTablesAreMixed: (setId) => context.practiceTables.length < basicsFactorRange(setId).length,
+    canStartPracticeSet: id => basicsSetUnlocked(id, context.practiceUnlocks),
+    syncPracticeControls: () => { synced++; },
+    t,
+  };
+  vm.createContext(context);
+  vm.runInContext(fn('updatePracticeLevelHint'), context);
+  vm.runInContext(fn('practiceTableList'), context);
+  setLocale('de', { persist: false });
+  await context.updatePracticeLevelHint();
+  assert.equal(hint.textContent, t('practice.setLockedHint', { gate: t('practice.setGate.campaign2') }));
+  assert.notEqual(hint.textContent, 'practice.setLockedHint');
+
+  // The small tables need the Campaign I unlock, so a Campaign II owner alone
+  // still reads why that set stays shut.
+  context.practiceSetSelect.value = 'tables-1-10';
+  context.practiceUnlocks = { campaign1: false, campaign2: true };
+  await context.updatePracticeLevelHint();
+  assert.equal(hint.textContent, t('practice.setLockedHint', { gate: t('practice.setGate.campaign1') }));
+
+  context.practiceUnlocks = { campaign1: true, campaign2: true };
+  await context.updatePracticeLevelHint();
+  assert.equal(hint.textContent, t('practice.setHint', { set: t('practice.set.tables-1-10'), minutes: 15 }));
+  assert.ok(synced >= 3, 'the start button is kept in step with the set');
+
+  // A mix names only the chosen tables instead of the whole set.
+  context.practiceTables = [3, 7, 9];
+  await context.updatePracticeLevelHint();
+  assert.equal(hint.textContent, t('practice.setHintTables', { tables: '3, 7 und 9', minutes: 15 }));
+  setLocale('en', { persist: false });
+});
+
+function basicsStartContext(practiceSet, unlocks) {
+  const started = [];
+  const context = {
+    practiceKindSelect: { value: 'basics' },
+    practiceSetSelect: { value: practiceSet },
+    practiceLevelSelect: { value: '34' },
+    practiceStatus: { textContent: '', classList: { toggle() {} } },
+    btnStartPractice: { disabled: false },
+    levelStarting: false,
+    profileMutationPending: false,
+    pendingSkillIntro: null,
+    platform: { isApp: false, username: '' },
+    profileUI: null,
+    runProfileId: null,
+    TOTAL_LEVELS: 60,
+    state: { difficulty: 'medium', score: 0, hearts: 5, maxHearts: 5, timerMax: 10 },
+    BASICS_SETS,
+    PRACTICE_GATE_KEYS: {
+      campaign1: 'practice.setUnlock.campaign1', campaign2: 'practice.setUnlock.campaign2',
+    },
+    PRACTICE_GATE_NAME_KEYS: {
+      campaign1: 'practice.setGate.campaign1', campaign2: 'practice.setGate.campaign2',
+    },
+    basicsSetFor,
+    basicsSetUnlocked,
+    practiceUnlocks: unlocks,
+    loadPracticeUnlocks: async () => unlocks,
+    canStartPracticeSet: id => basicsSetUnlocked(id, unlocks),
+    practiceDurationMinutes: () => 15,
+    practiceTables: [3, 7],
+    writeBasicsDuration: () => {},
+    writeBasicsTables: () => {},
+    practiceHistoryStorage: () => null,
+    practiceOwnerId: () => 'guest',
+    basicsBadgeIds: id => [`practice-basics-${id}`],
+    basicsLevelConfig: id => ({ level: 1, basicsSetId: id, waveSize: 10 }),
+    createCompletionId: () => 'practice-basics',
+    createPracticeSession: ({ kind }) => createPracticeSession({ kind }),
+    createEarnedRecovery,
+    getTargetedProblems: () => [],
+    showPracticeStatus: message => { context.practiceStatus.textContent = message; },
+    startLevel: async (index, includeBaseline, cfg) => { started.push({ index, cfg }); },
+    t: key => key,
+    console: { error() {} },
+  };
+  vm.createContext(context);
+  vm.runInContext(fn('startPracticeSession'), context);
+  return { context, started };
+}
+
+test('a locked Basics set refuses to start and re-checks the unlock on the server answer', async () => {
+  const locked = basicsStartContext('tables-1-15', { campaign1: true, campaign2: false });
+  await locked.context.startPracticeSession('basics');
+  assert.equal(locked.started.length, 0, 'a locked set must not start a level');
+  assert.equal(locked.context.practiceStatus.textContent, 'practice.setLockedHint');
+  assert.equal(locked.context.btnStartPractice.disabled, true);
+
+  const open = basicsStartContext('tables-1-10', { campaign1: true, campaign2: false });
+  await open.context.startPracticeSession('basics');
+  assert.deepEqual(open.started, [
+    { index: 0, cfg: { level: 1, basicsSetId: 'tables-1-10', waveSize: 10 } },
+  ]);
+  assert.equal(open.context.practiceStatus.textContent, '');
+  assert.equal(open.context.btnStartPractice.disabled, false);
+});
+
+test('a Basics session redraws a question it has already asked', () => {
+  const practiceRun = { kind: 'basics', basicsSeen: new Set(['2 × 2 = ?']) };
+  let drawn = 0;
+  const context = {
+    practiceRun,
+    generateBasicsProblem: () => {
+      drawn++;
+      return drawn <= 2
+        ? { question: '2 × 2 = ?', answer: 4 }
+        : { question: '3 × 3 = ?', answer: 9 };
+    },
+  };
+  vm.createContext(context);
+  vm.runInContext(fn('nextBasicsProblem'), context);
+  const problem = context.nextBasicsProblem('tables-1-10');
+  assert.equal(problem.question, '3 × 3 = ?');
+  assert.equal(drawn, 3, 'the repeated draw is rejected');
+  assert.ok(practiceRun.basicsSeen.has('3 × 3 = ?'));
+});
+
+test('a finished Basics run is stored with its solved count, length and finish time', () => {
+  const recorded = [];
+  const run = {
+    kind: 'basics', completed: true, basicsSetId: 'tables-1-15',
+    basicsTables: [3, 7],
+    durationMinutes: 15, durationMs: 15 * 60 * 1000, elapsedMs: 15 * 60 * 1000,
+    session: { snapshot: () => ({ correctAnswers: 23 }) },
+  };
+  const context = {
+    practiceRun: run,
+    basicsFactorRange,
+    practiceHistoryStorage: () => ({}),
+    practiceOwnerId: () => 'mia',
+    recordBasicsResult: (storage, owner, entry) => { recorded.push({ owner, entry }); },
+    renderPracticeResults: () => { context.rendered = true; },
+    console: { error() {} },
+  };
+  vm.createContext(context);
+  vm.runInContext(fn('recordCompletedBasicsRun'), context);
+  context.recordCompletedBasicsRun({ completed: true });
+
+  assert.equal(recorded.length, 1);
+  assert.equal(recorded[0].owner, 'mia');
+  const stored = JSON.parse(JSON.stringify(recorded[0].entry));
+  const { finishedAt, ...rest } = stored;
+  assert.deepEqual(rest, {
+    setId: 'tables-1-15', solved: 23, minutes: 15, completed: true, tables: [3, 7],
+  });
+  assert.ok(!Number.isNaN(Date.parse(finishedAt)), 'the finish time is a real timestamp');
+  assert.deepEqual(run.result, recorded[0].entry);
+  assert.equal(context.rendered, true);
+
+  // A second call for the same run never writes a second entry.
+  context.recordCompletedBasicsRun({ completed: false });
+  assert.equal(recorded.length, 1);
+});
+
+test('a run stopped early is stored as a stopped run with its played minutes', () => {
+  const recorded = [];
+  const context = {
+    practiceRun: {
+      kind: 'basics', completed: false, basicsSetId: 'tables-1-10',
+      basicsTables: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10],
+      durationMinutes: 15, durationMs: 15 * 60 * 1000, elapsedMs: 3 * 60 * 1000 + 20000,
+      session: { snapshot: () => ({ correctAnswers: 4 }) },
+    },
+    basicsFactorRange,
+    practiceHistoryStorage: () => ({}),
+    practiceOwnerId: () => 'mia',
+    recordBasicsResult: (storage, owner, entry) => { recorded.push(entry); },
+    renderPracticeResults: () => {},
+    console: { error() {} },
+  };
+  vm.createContext(context);
+  vm.runInContext(fn('recordCompletedBasicsRun'), context);
+  context.recordCompletedBasicsRun({ completed: false });
+  const stored = JSON.parse(JSON.stringify(recorded[0]));
+  const { finishedAt, ...rest } = stored;
+  assert.deepEqual(rest, {
+    setId: 'tables-1-10', solved: 4, minutes: 3, completed: false, tables: [],
+  }, 'the whole set is not recorded as a mix');
+  assert.ok(!Number.isNaN(Date.parse(finishedAt)));
+});
+
+test('a failed write never breaks the completed run', () => {
+  const context = {
+    practiceRun: {
+      kind: 'basics', completed: true, basicsSetId: 'tables-1-10',
+      basicsTables: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10],
+      durationMinutes: 15, durationMs: 900000, elapsedMs: 900000,
+      session: { snapshot: () => ({ correctAnswers: 12 }) },
+    },
+    basicsFactorRange,
+    practiceHistoryStorage: () => null,
+    practiceOwnerId: () => 'guest',
+    recordBasicsResult: () => { throw new Error('storage full'); },
+    renderPracticeResults: () => {},
+    console: { error() {} },
+  };
+  vm.createContext(context);
+  vm.runInContext(fn('recordCompletedBasicsRun'), context);
+  assert.doesNotThrow(() => context.recordCompletedBasicsRun());
+  assert.equal(context.practiceRun.result, undefined);
+});
+
+test('the run clock ends a Basics run when its time is up, and only then', () => {
+  const context = {
+    practiceRun: { kind: 'basics', completed: false, durationMs: 60000, elapsedMs: 0 },
+  };
+  vm.createContext(context);
+  vm.runInContext(fn('tickBasicsRunClock'), context);
+  assert.equal(context.tickBasicsRunClock(30), false);
+  assert.equal(context.practiceRun.elapsedMs, 30000);
+  assert.equal(context.tickBasicsRunClock(29.9), false);
+  assert.equal(context.tickBasicsRunClock(0.2), true, 'the clock passed 60 s');
+  assert.equal(context.practiceRun.completed, false, 'the loop, not the tick, ends the session');
+
+  context.practiceRun = { kind: 'basics', completed: true, durationMs: 1000, elapsedMs: 500 };
+  assert.equal(context.tickBasicsRunClock(10), false, 'a finished run stays finished');
+  context.practiceRun = { kind: 'short', durationMs: 1000, elapsedMs: 0 };
+  assert.equal(context.tickBasicsRunClock(10), false, 'other modes have no run clock');
+  context.practiceRun = null;
+  assert.equal(context.tickBasicsRunClock(10), false);
+});
+
+test('a practice session records a Basics run exactly once', () => {
+  const calls = [];
+  const context = {
+    practiceRun: { kind: 'basics', completed: false, endless: false },
+    recordCompletedBasicsRun: () => calls.push('record'),
+    triggerGameOver: () => calls.push('gameover'),
+    savePracticeBadges: () => calls.push('badges'),
+  };
+  vm.createContext(context);
+  vm.runInContext(fn('finishPracticeSession'), context);
+  context.finishPracticeSession();
+  context.finishPracticeSession();
+  assert.deepEqual(calls, ['record', 'gameover', 'badges']);
+});
+
+test('the completion card names the recorded time only for a recorded run', () => {
+  const line = { hidden: true, textContent: '' };
+  const context = {
+    gameOverRecord: line,
+    practiceRun: { result: { finishedAt: new Date(2026, 10, 8, 9, 5).toISOString() } },
+    t: (key, values) => `${key}|${values.when}`,
+    formatBasicsResultTime,
+  };
+  vm.createContext(context);
+  vm.runInContext(fn('renderPracticeRecordLine'), context);
+  context.renderPracticeRecordLine();
+  assert.equal(line.hidden, false);
+  assert.equal(line.textContent, 'practice.recordedAt|08.11. 09:05');
+  context.practiceRun = null;
+  context.renderPracticeRecordLine();
+  assert.equal(line.hidden, true);
 });
 
 test('the practice panel is a submenu with the tab title style and its own way back', async () => {

@@ -310,11 +310,13 @@ describe('run starts', () => {
     );
 
     const practice = functionSource('startPracticeSession');
-    assert.match(practice, /beginAbilityRun\(sourceLevel\);/);
+    assert.match(practice, /beginAbilityRun\(practiceLevel\);/);
     assert.ok(
-      practice.indexOf('beginAbilityRun(sourceLevel)') < practice.indexOf('await startLevel(sourceLevel - 1)'),
+      practice.indexOf('beginAbilityRun(practiceLevel)') < practice.indexOf('await startLevel(practiceLevel - 1'),
       'practice resets before the level starts',
     );
+    assert.match(practice, /const practiceLevel = basics \? 1 : sourceLevel;/,
+      'Basics Math never inherits the hidden level selector\'s abilities');
 
     const resume = functionSource('resumePendingLevel');
     assert.match(resume, /beginAbilityRun\(pending\.levelIndex \+ 1\);/);

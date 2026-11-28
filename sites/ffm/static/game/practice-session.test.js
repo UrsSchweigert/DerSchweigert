@@ -105,6 +105,24 @@ test('badge IDs describe practice completion, not score or mastery', () => {
   ]);
   assert.deepEqual(getPracticeBadgeIds([], 'targeted'), ['practice-targeted']);
   assert.deepEqual(getPracticeBadgeIds([], 'shapes'), ['practice-shapes']);
+  // Basics Math carries its own per-set badge ids; this is only the fallback.
+  assert.deepEqual(getPracticeBadgeIds([], 'basics'), ['practice-basics']);
+  assert.deepEqual(getPracticeBadgeIds(['*'], 'basics'), ['practice-basics']);
+});
+
+test('a Basics session keeps counting until its clock ends it', () => {
+  const session = createPracticeSession({ kind: 'basics' });
+  assert.equal(session.snapshot().targetEncounters, null);
+  for (let index = 0; index < 40; index++) {
+    const problem = { question: `${index} × 2 = ?`, answer: index * 2 };
+    const correct = index % 5 !== 0;
+    session.recordAnswer(problem, correct, !correct && index % 10 === 0 ? { timeout: true } : {});
+    if (correct) session.recordEncounterDefeated();
+  }
+  assert.equal(session.isComplete(), false, 'only the run clock ends a Basics session');
+  const snapshot = session.snapshot();
+  assert.ok(snapshot.encountersDefeated > 0, 'solved encounters are counted');
+  assert.equal(snapshot.scored, false);
 });
 
 test('invalid practice inputs reject before changing counters', () => {
