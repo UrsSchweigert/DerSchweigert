@@ -1,5 +1,5 @@
 /** Every practice mode the game offers; the single source of truth. */
-export const PRACTICE_KINDS = Object.freeze(['targeted', 'short', 'assisted', 'elite', 'recovery', 'shapes']);
+export const PRACTICE_KINDS = Object.freeze(['targeted', 'short', 'assisted', 'elite', 'recovery', 'shapes', 'basics']);
 const KINDS = new Set(PRACTICE_KINDS);
 const isProblem = (problem) => problem !== null && typeof problem === 'object' && !Array.isArray(problem);
 const invalid = (message) => Object.assign(new TypeError(message), { code: 'invalid_practice' });
@@ -20,6 +20,9 @@ export function getPracticeBadgeIds(operations, kind) {
   if (!KINDS.has(kind)) throw invalid('Unknown practice kind');
   if (kind === 'targeted') return ['practice-targeted'];
   if (kind === 'shapes') return ['practice-shapes'];
+  // Basics Math names the practised set itself (see basics-math.js's badge ids),
+  // so this is only the fallback for a session that did not carry them.
+  if (kind === 'basics') return ['practice-basics'];
   const badges = { '+': 'addition', '-': 'subtraction', '*': 'multiplication', '/': 'division' };
   if (!Array.isArray(operations) || !operations.every((operation) => Object.hasOwn(badges, operation))) {
     throw invalid('Arithmetic operations are required');
@@ -45,15 +48,21 @@ export function createPracticeSession({ kind, problems = [] } = {}) {
   if (!Array.isArray(problems) || !problems.every(isProblem)) throw invalid('Problem objects are required');
   const ordered = kind === 'targeted' ? collectTargetedProblems(problems) : [...problems];
   if (kind === 'targeted' && ordered.length === 0) throw invalid('Targeted practice requires missed problems');
+  // A Basics Math run is bounded by its clock, not by a count: the session keeps
+  // tallying until the caller ends it, so `isComplete` stays false.
+  const unbounded = kind === 'basics';
   const targetProblems = kind === 'targeted' ? ordered.length : kind === 'shapes' ? 10 : null;
-  const targetEncounters = targetProblems === null ? 10 : null;
+  const targetEncounters = unbounded || targetProblems !== null ? null : 10;
   const resolved = new Set();
   let encountersDefeated = 0;
   let correctAnswers = 0;
   let incorrectAnswers = 0;
   let timeouts = 0;
-  const isComplete = () => targetProblems === null
-    ? encountersDefeated >= targetEncounters : resolved.size >= targetProblems;
+  const isComplete = () => {
+    if (unbounded) return false;
+    return targetProblems === null
+      ? encountersDefeated >= targetEncounters : resolved.size >= targetProblems;
+  };
   const snapshot = () => Object.freeze({
     kind, scored: false, untimed: ['targeted', 'assisted'].includes(kind), targetProblems, targetEncounters,
     resolvedProblems: resolved.size, encountersDefeated, correctAnswers, incorrectAnswers,
@@ -73,7 +82,7 @@ export function createPracticeSession({ kind, problems = [] } = {}) {
       return snapshot();
     },
     recordEncounterDefeated() {
-      if (targetEncounters !== null && !isComplete()) encountersDefeated++;
+      if (!isComplete() && (unbounded || targetEncounters !== null)) encountersDefeated++;
       return snapshot();
     },
   });

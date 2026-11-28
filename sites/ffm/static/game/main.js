@@ -68,6 +68,29 @@ import {
   getPracticeBadgeIds,
   getPracticeEliteHp,
 } from './practice-session.js';
+import {
+  BASICS_DURATIONS,
+  BASICS_SETS,
+  basicsBadgeIds,
+  basicsFactorRange,
+  basicsLevelConfig,
+  basicsSetFor,
+  basicsSetUnlocked,
+  generateBasicsProblem,
+  normaliseBasicsDuration,
+  normaliseBasicsFactors,
+} from './basics-math.js';
+import {
+  formatBasicsCountdown,
+  formatBasicsResult,
+  formatBasicsResultTime,
+  readBasicsDuration,
+  readBasicsResults,
+  readBasicsTables,
+  recordBasicsResult,
+  writeBasicsDuration,
+  writeBasicsTables,
+} from './basics-results.js';
 import { getSkillIntro } from './skill-intro.js';
 import { generateGameProblem2 } from './campaign2/problem.js';
 import { bossRoundKinds2, isBossRoundLevel2, TOTAL_LEVELS_2 } from './campaign2/campaign2-levels.js';
@@ -618,9 +641,26 @@ async function getCampaign2Config(levelIndex) {
 // kinds, and scene / ability levels; Campaign 1 configs carry none of those fields.
 const isBossFor = cfg => (cfg.campaign === 2 ? isBossRoundLevel2(cfg.level) : isBossRoundLevel(cfg.level));
 function makeProblem(cfg, options) {
+  if (cfg.basicsSetId) return nextBasicsProblem(cfg.basicsSetId);
   return cfg.campaign === 2
     ? generateGameProblem2(cfg.level, Date.now(), options)
     : generateProblem(cfg.level - 1, Date.now(), cfg, options);
+}
+
+// A run should not ask a fact it already asked while unseen ones remain; a very
+// long drill can exhaust the 100-fact set, and then a repeat is allowed.
+function nextBasicsProblem(setId) {
+  const run = practiceRun?.kind === 'basics' ? practiceRun : null;
+  const seen = run?.basicsSeen ?? null;
+  const factors = run?.basicsTables ?? undefined;
+  for (let attempt = 0; attempt < 40; attempt++) {
+    const problem = generateBasicsProblem(setId, Math.floor(Math.random() * 0x7fffffff), { factors });
+    if (!seen?.has(problem.question)) {
+      seen?.add(problem.question);
+      return problem;
+    }
+  }
+  return generateBasicsProblem(setId, Date.now(), { factors });
 }
 function nextHitProblem(fiend, cfg) {
   if (fiend.bossRound && !practiceRun) {
@@ -635,7 +675,9 @@ function nextHitProblem(fiend, cfg) {
 function createFiend(levelIndex, x) {
   const cfg = platform.getCurrentLevelConfig();
   if (!cfg) throw new Error('Level config not loaded');
-  const problem = cfg.campaign === 2 ? makeProblem(cfg) : generateProblem(levelIndex, Date.now(), cfg);
+  const problem = cfg.campaign === 2 || cfg.basicsSetId
+    ? makeProblem(cfg)
+    : generateProblem(levelIndex, Date.now(), cfg);
   const spawnIndex = state.fiendsSpawned;
   state.fiendsSpawned++;
   const fiendTypeKey = String(sampleFiendType(cfg.artLevel ?? cfg.level, spawnIndex) || cfg.fiendType || '').toLowerCase();
@@ -655,7 +697,12 @@ function createFiend(levelIndex, x) {
   fiend.problem = problem;
   fiend.isElite = practiceElite || (isElite && !bossRound);
   fiend.bossRound = bossRound;
-  fiend.fiendClassId = sampleFiendClassId(cfg.artLevel ?? cfg.level, spawnIndex);
+  // Basics Math runs on level 1, whose class weights hold a single entry, so the
+  // sampled id would draw the same sprite ten times. Sample the whole roster
+  // instead, for the same reason createShapesFiend does.
+  fiend.fiendClassId = cfg.basicsSetId
+    ? 1 + Math.floor(Math.random() * FIEND_CLASSES.length)
+    : sampleFiendClassId(cfg.artLevel ?? cfg.level, spawnIndex);
   fiend.type = fiendTypeKey;
   audio.prepareFiend?.(fiendTypeKey);
   if (practiceRun && practiceRun.kind !== 'targeted' && problem.operation) {
@@ -836,6 +883,16 @@ const levelJumpRow = document.getElementById('level-jump-row');
 const levelGrid = createLevelGrid({ doc: document, onSelect: onLevelGridSelect });
 const practiceKindSelect = document.getElementById('practice-kind');
 const practiceLevelSelect = document.getElementById('practice-level-select');
+const practiceLevelLabel = document.getElementById('practice-level-label');
+const practiceSetSelect = document.getElementById('practice-set');
+const practiceSetLabel = document.getElementById('practice-set-label');
+const practiceDurationRow = document.getElementById('practice-duration-row');
+const practiceDurationSelect = document.getElementById('practice-duration');
+const practiceTablesRow = document.getElementById('practice-tables-row');
+const practiceTablesChips = document.getElementById('practice-tables-chips');
+const practiceBasicsResults = document.getElementById('practice-basics-results');
+const practiceBasicsResultsList = document.getElementById('practice-basics-results-list');
+const gameOverRecord = document.getElementById('game-over-record');
 const practiceBadges = document.getElementById('practice-badges');
 const practiceStatus = document.getElementById('practice-status');
 const practiceLevelHint = document.getElementById('practice-level-hint');
@@ -1811,9 +1868,225 @@ async function loadLevelSummary(level) {
   return summary;
 }
 
+// Basics Math replaces the level selector with an exercise-set selector: the
+// sets teach different tables, not different levels, so a source level would
+// only confuse. Each set sits behind its campaign unlock (see basics-math.js).
+const PRACTICE_GATE_KEYS = Object.freeze({
+  campaign1: 'practice.setUnlock.campaign1',
+  campaign2: 'practice.setUnlock.campaign2',
+});
+const PRACTICE_GATE_NAME_KEYS = Object.freeze({
+  campaign1: 'practice.setGate.campaign1',
+  campaign2: 'practice.setGate.campaign2',
+});
+let practiceUnlocks = { campaign1: false, campaign2: false };
+let practiceUnlockGeneration = 0;
+
+function practiceSetMode() {
+  return practiceKindSelect?.value === 'basics';
+}
+
+/** The full unlock (Campaign I) and Campaign II, read from the same sources the level grid and campaign switch use. */
+async function loadPracticeUnlocks() {
+  let campaign1 = premiumAccess;
+  try {
+    campaign1 = (await platform.getBillingStatus())?.premium_access === true || campaign1;
+  } catch {
+    campaign1 = premiumAccess;
+  }
+  let campaign2 = false;
+  try {
+    campaign2 = (await getCampaign2AccessNow()).granted === true;
+  } catch {
+    campaign2 = false;
+  }
+  return { campaign1, campaign2 };
+}
+
+function practiceSetName(setId) {
+  return BASICS_SETS.some((set) => set.id === setId) ? t(`practice.set.${setId}`) : setId;
+}
+
+// Completed Basics runs live in the device's local storage, per player, never on
+// the server: practice stays unscored and needs no account.
+function practiceHistoryStorage() {
+  try {
+    return globalThis.localStorage ?? null;
+  } catch {
+    return null;
+  }
+}
+
+function populatePracticeDurationOptions() {
+  if (!practiceDurationSelect) return;
+  practiceDurationSelect.innerHTML = BASICS_DURATIONS.map((minutes) =>
+    `<option value="${minutes}">${escHtml(t('practice.durationMinutes', { minutes }))}</option>`).join('');
+}
+
+function refreshPracticeDurationChoice() {
+  if (!practiceDurationSelect) return;
+  const stored = readBasicsDuration(practiceHistoryStorage(), practiceOwnerId());
+  practiceDurationSelect.value = String(normaliseBasicsDuration(stored));
+}
+
+function practiceDurationMinutes() {
+  return normaliseBasicsDuration(practiceDurationSelect?.value);
+}
+
+// The tables the current set mixes. Everything in the set is "all"; the chips
+// let the player pick a mix such as 3, 7 and 9, remembered per player and set.
+let practiceTables = [];
+
+function loadPracticeTables(setId) {
+  return normaliseBasicsFactors(setId, readBasicsTables(practiceHistoryStorage(), practiceOwnerId(), setId));
+}
+
+/** "3, 7 und 9" for hints and records. */
+function practiceTableList(tables) {
+  const words = tables.map(String);
+  if (words.length <= 1) return words.join('');
+  return `${words.slice(0, -1).join(t('practice.listSeparator'))}${t('practice.listAnd')}${words[words.length - 1]}`;
+}
+
+function practiceTablesAreMixed(setId) {
+  const range = BASICS_SETS.some((set) => set.id === setId) ? basicsFactorRange(setId) : [];
+  return range.length > 0 && practiceTables.length < range.length;
+}
+
+function renderPracticeTables() {
+  if (!practiceTablesRow || !practiceTablesChips) return;
+  const setId = practiceSetSelect?.value;
+  const range = BASICS_SETS.some((set) => set.id === setId) ? basicsFactorRange(setId) : [];
+  if (range.length === 0) {
+    practiceTablesRow.hidden = true;
+    practiceTablesChips.textContent = '';
+    practiceTables = [];
+    return;
+  }
+  practiceTablesRow.hidden = !practiceSetMode();
+  const chosen = new Set(practiceTables);
+  practiceTablesChips.innerHTML = range.map((table) =>
+    `<button type="button" class="practice-table-chip" data-table="${table}" aria-pressed="${chosen.has(table)}">${table}</button>`).join('');
+}
+
+function refreshPracticeTablesChoice() {
+  practiceTables = loadPracticeTables(practiceSetSelect?.value);
+  renderPracticeTables();
+}
+
+function togglePracticeTable(table, chip = null) {
+  const setId = practiceSetSelect?.value;
+  const range = BASICS_SETS.some((set) => set.id === setId) ? basicsFactorRange(setId) : [];
+  if (!range.includes(table)) return;
+  const chosen = new Set(practiceTables);
+  if (chosen.has(table)) {
+    // The last chosen table stays on: a mix of none has no questions.
+    if (chosen.size === 1) return;
+    chosen.delete(table);
+  } else {
+    chosen.add(table);
+  }
+  practiceTables = normaliseBasicsFactors(setId, [...chosen]);
+  writeBasicsTables(practiceHistoryStorage(), practiceOwnerId(), setId, practiceTables);
+  // Only the pressed chip changes: re-rendering the row would take the focus
+  // (and the next tap) off a keyboard or switch user's button.
+  chip?.setAttribute?.('aria-pressed', String(chosen.has(table)));
+  updatePracticeLevelHint();
+}
+
+/** Milliseconds left on a Basics run clock. */
+function basicsRemainingMs() {
+  return Math.max(0, (practiceRun?.durationMs ?? 0) - (practiceRun?.elapsedMs ?? 0));
+}
+
+function renderPracticeResults() {
+  if (!practiceBasicsResults || !practiceBasicsResultsList) return;
+  const results = readBasicsResults(practiceHistoryStorage(), practiceOwnerId()).slice(0, 5);
+  practiceBasicsResultsList.textContent = '';
+  for (const result of results) {
+    const item = document.createElement('li');
+    item.textContent = formatBasicsResult(result, { translate: t, nameForSet: practiceSetName });
+    practiceBasicsResultsList.appendChild(item);
+  }
+  practiceBasicsResults.hidden = results.length === 0 || !practiceSetMode();
+}
+
+function canStartPracticeSet(setId) {
+  return BASICS_SETS.some((set) => set.id === setId) && basicsSetUnlocked(setId, practiceUnlocks);
+}
+
+function renderPracticeSetOptions() {
+  if (!practiceSetSelect) return;
+  const options = BASICS_SETS.map((set) => {
+    const lock = canStartPracticeSet(set.id) ? '' : ` ${t(PRACTICE_GATE_KEYS[set.gate])}`;
+    return `<option value="${set.id}">${escHtml(practiceSetName(set.id) + lock)}</option>`;
+  });
+  practiceSetSelect.innerHTML = options.join('');
+}
+
+/** Show the selector the chosen mode uses and put the start button back in step. */
+function syncPracticeControls() {
+  const basics = practiceSetMode();
+  if (practiceSetSelect) practiceSetSelect.hidden = !basics;
+  if (practiceSetLabel) practiceSetLabel.hidden = !basics;
+  if (practiceLevelSelect) practiceLevelSelect.hidden = basics;
+  if (practiceLevelLabel) practiceLevelLabel.hidden = basics;
+  if (practiceDurationRow) practiceDurationRow.hidden = !basics;
+  if (practiceTablesRow) {
+    // Only a set of times tables has a mix to choose.
+    const setId = practiceSetSelect?.value;
+    const hasTables = BASICS_SETS.some((set) => set.id === setId) && basicsFactorRange(setId).length > 0;
+    practiceTablesRow.hidden = !basics || !hasTables;
+  }
+  if (practiceBasicsResults) {
+    practiceBasicsResults.hidden = !basics || practiceBasicsResultsList?.childElementCount === 0;
+  }
+  if (btnStartPractice) {
+    if (basics) btnStartPractice.disabled = !canStartPracticeSet(practiceSetSelect?.value);
+    else if (!levelStarting) btnStartPractice.disabled = false;
+  }
+}
+
+// Reads the unlocks again whenever the submenu opens: that is the moment right
+// after a purchase, and the app has no other hook into the store answer.
+async function refreshPracticeSets() {
+  if (!practiceSetMode() || !practiceSetSelect) return;
+  refreshPracticeDurationChoice();
+  refreshPracticeTablesChoice();
+  renderPracticeResults();
+  const generation = ++practiceUnlockGeneration;
+  const unlocks = await loadPracticeUnlocks();
+  if (generation !== practiceUnlockGeneration) return;
+  practiceUnlocks = unlocks;
+  const current = practiceSetSelect.value;
+  renderPracticeSetOptions();
+  practiceSetSelect.value = BASICS_SETS.some((set) => set.id === current)
+    ? current : BASICS_SETS[0].id;
+  syncPracticeControls();
+  updatePracticeLevelHint();
+}
+
 async function updatePracticeLevelHint() {
   if (!practiceLevelHint) return;
   const generation = ++levelHintGeneration;
+  // Inlined (not practiceSetMode()) because tests run this function on its own.
+  if (practiceKindSelect?.value === 'basics') {
+    const setId = practiceSetSelect?.value;
+    if (!BASICS_SETS.some((set) => set.id === setId)) {
+      practiceLevelHint.textContent = '';
+      return;
+    }
+    syncPracticeControls();
+    practiceLevelHint.textContent = canStartPracticeSet(setId)
+      ? practiceTablesAreMixed(setId)
+        ? t('practice.setHintTables', {
+          tables: practiceTableList(practiceTables),
+          minutes: practiceDurationMinutes(),
+        })
+        : t('practice.setHint', { set: practiceSetName(setId), minutes: practiceDurationMinutes() })
+      : t('practice.setLockedHint', { gate: t(PRACTICE_GATE_NAME_KEYS[basicsSetFor(setId).gate]) });
+    return;
+  }
   if (practiceKindSelect?.value === 'shapes') {
     practiceLevelHint.textContent = t('practice.levelHintShapes');
     return;
@@ -1859,15 +2132,34 @@ async function refreshPracticeBadges() {
 
 async function startPracticeSession(kind = practiceKindSelect?.value, sourceLevel = Number(practiceLevelSelect?.value || 1), { endless = false } = {}) {
   if (levelStarting || profileMutationPending || pendingSkillIntro) return;
-  if (!['targeted', 'short', 'assisted', 'elite', 'recovery', 'shapes'].includes(kind)) {
+  if (!['targeted', 'short', 'assisted', 'elite', 'recovery', 'shapes', 'basics'].includes(kind)) {
     showPracticeStatus(t('practice.invalidMode'), true);
     return;
   }
+  const basics = kind === 'basics';
+  const basicsSet = basics ? practiceSetSelect?.value : null;
+  const basicsMinutes = basics ? practiceDurationMinutes() : null;
+  const basicsTables = basics ? practiceTables.slice() : [];
   levelStarting = true;
   if (btnStartPractice) btnStartPractice.disabled = true;
   try {
     if (!Number.isInteger(sourceLevel) || sourceLevel < 1 || sourceLevel > TOTAL_LEVELS) {
       throw new RangeError('Choose a practice level from 1 to 60');
+    }
+    if (basics) {
+      // Re-checked here rather than only in the panel: a stale unlock state
+      // (a refund, another device's purchase) must not start a locked set.
+      if (!BASICS_SETS.some((set) => set.id === basicsSet)) {
+        showPracticeStatus(t('practice.invalidMode'), true);
+        return;
+      }
+      practiceUnlocks = await loadPracticeUnlocks();
+      if (!canStartPracticeSet(basicsSet)) {
+        showPracticeStatus(t('practice.setLockedHint', {
+          gate: t(PRACTICE_GATE_NAME_KEYS[basicsSetFor(basicsSet).gate]),
+        }), true);
+        return;
+      }
     }
     if (platform.isApp) {
       await ensureLocalProfiles();
@@ -1875,6 +2167,12 @@ async function startPracticeSession(kind = practiceKindSelect?.value, sourceLeve
       runProfileId = platform.localProfiles.getActiveProfile().id;
     } else {
       runProfileId = null;
+    }
+    // Persist the run length under the player who actually starts the run: in
+    // the app the profiles may only be loaded by now.
+    if (basics) {
+      writeBasicsDuration(practiceHistoryStorage(), practiceOwnerId(), basicsMinutes);
+      writeBasicsTables(practiceHistoryStorage(), practiceOwnerId(), basicsSet, basicsTables);
     }
     const targetProblems = kind === 'targeted' ? getTargetedProblems(sourceLevel) : [];
     if (kind === 'targeted' && targetProblems.length === 0) {
@@ -1884,7 +2182,14 @@ async function startPracticeSession(kind = practiceKindSelect?.value, sourceLeve
     practiceRun = {
       kind,
       endless: kind === 'shapes' && endless,
-      sourceLevel,
+      sourceLevel: basics ? 1 : sourceLevel,
+      basicsSetId: basics ? basicsSet : null,
+      basicsSeen: basics ? new Set() : null,
+      durationMinutes: basicsMinutes,
+      durationMs: basics ? basicsMinutes * 60 * 1000 : null,
+      basicsTables,
+      elapsedMs: 0,
+      badgeIds: basics ? basicsBadgeIds(basicsSet) : null,
       sessionId: createCompletionId(),
       session: createPracticeSession({ kind, problems: targetProblems }),
       targetProblems,
@@ -1914,8 +2219,11 @@ async function startPracticeSession(kind = practiceKindSelect?.value, sourceLeve
       state.hearts = state.maxHearts;
     }
     showPracticeStatus('');
-    if (typeof beginAbilityRun === 'function') beginAbilityRun(sourceLevel);
-    await startLevel(sourceLevel - 1);
+    // Basics Math always plays level 1: no campaign abilities, chapter-1 art and
+    // no skill intro (level 1 has none). Its set comes from the synthetic config.
+    const practiceLevel = basics ? 1 : sourceLevel;
+    if (typeof beginAbilityRun === 'function') beginAbilityRun(practiceLevel);
+    await startLevel(practiceLevel - 1, false, basics ? basicsLevelConfig(basicsSet) : null);
   } catch (error) {
     console.error('Unable to start practice', error);
     practiceRun = null;
@@ -1925,7 +2233,11 @@ async function startPracticeSession(kind = practiceKindSelect?.value, sourceLeve
     }), true);
   } finally {
     levelStarting = false;
-    if (btnStartPractice) btnStartPractice.disabled = false;
+    if (btnStartPractice) {
+      // A locked Basics set keeps the button dark after a refused start.
+      const locked = typeof canStartPracticeSet === 'function' && basics && !canStartPracticeSet(basicsSet);
+      btnStartPractice.disabled = locked;
+    }
   }
 }
 
@@ -1987,10 +2299,26 @@ function renderPracticeDescription() {
 practiceKindSelect?.addEventListener('change', () => {
   showPracticeStatus('');
   renderPracticeDescription();
+  syncPracticeControls();
+  refreshPracticeSets();
   updatePracticeLevelHint();
 });
 practiceLevelSelect?.addEventListener('change', () => {
   showPracticeStatus('');
+  updatePracticeLevelHint();
+});
+practiceSetSelect?.addEventListener('change', () => {
+  showPracticeStatus('');
+  refreshPracticeTablesChoice();
+  updatePracticeLevelHint();
+});
+practiceTablesChips?.addEventListener('click', (event) => {
+  const chip = event.target?.closest?.('.practice-table-chip');
+  if (!chip) return;
+  togglePracticeTable(Number(chip.dataset.table), chip);
+});
+practiceDurationSelect?.addEventListener('change', () => {
+  writeBasicsDuration(practiceHistoryStorage(), practiceOwnerId(), practiceDurationMinutes());
   updatePracticeLevelHint();
 });
 document.getElementById('btn-open-practice')?.addEventListener('click', () => {
@@ -1999,7 +2327,9 @@ document.getElementById('btn-open-practice')?.addEventListener('click', () => {
   practicePanel.querySelector('#practice-kind')?.focus?.({ preventScroll: true });
 });
 practicePanel?.addEventListener('toggle', () => {
-  if (practicePanel.open) resetLevelSummaries();
+  if (!practicePanel.open) return;
+  resetLevelSummaries();
+  refreshPracticeSets();
 });
 /**
  * The practice panel is a submenu of the Training tab, so it needs its own way
@@ -2020,6 +2350,11 @@ practicePanel?.addEventListener('keydown', (event) => {
   closePracticePanel();
 });
 setPracticeLevelOptions();
+renderPracticeSetOptions();
+populatePracticeDurationOptions();
+refreshPracticeDurationChoice();
+renderPracticeResults();
+syncPracticeControls();
 updatePracticeLevelHint();
 
 async function refreshPersonalDevelopment() {
@@ -3184,7 +3519,7 @@ function startStorm(cfg) {
 // initial preload (or its safety timeout) finished. Gating the actual level
 // setup behind both checks means gameplay never starts painting until
 // everything it needs is genuinely ready.
-async function startLevel(levelIndex, includeBaseline = false) {
+async function startLevel(levelIndex, includeBaseline = false, overrideCfg = null) {
   globalThis.ffmScreenFx?.clear();
   setAnswerInputVisible(false);
   if (profileMutationPending) return;
@@ -3208,10 +3543,12 @@ async function startLevel(levelIndex, includeBaseline = false) {
       await profileUI?.whenIdle();
       runProfileId = platform.localProfiles.getActiveProfile().id;
     }
-    // Fetch level config (handles authorization for premium levels)
-    const cfg = typeof selectedCampaign !== 'undefined' && selectedCampaign === 2
+    // Fetch level config (handles authorization for premium levels). A practice
+    // mode that does not play a campaign level (Basics Math) brings its own
+    // synthetic config instead: nothing is fetched and nothing is authorized.
+    const cfg = overrideCfg ?? (typeof selectedCampaign !== 'undefined' && selectedCampaign === 2
       ? await getCampaign2Config(levelIndex)
-      : await platform.getAuthorizedLevelConfig(levelIndex, includeBaseline);
+      : await platform.getAuthorizedLevelConfig(levelIndex, includeBaseline));
 
     // Check if this request became stale (user logged in/out, or new level started)
     if (myGeneration !== levelRequestGeneration || originalUsername !== platform.username) {
@@ -3692,9 +4029,12 @@ function finishStartLevel(levelIndex, cfg, baselineScore = 0) {
   // it must match the spawn list filled below and survive storm removals.
   state.levelEnemies = practiceRun?.kind === 'targeted'
     ? practiceRun.targetProblems.length
-    : practiceRun
-      ? 10
-      : cfg?.waveSize ?? 0;
+    : practiceRun?.kind === 'basics'
+      // A Basics run is clock-bounded and endless: no sword row to fill.
+      ? 0
+      : practiceRun
+        ? 10
+        : cfg?.waveSize ?? 0;
   state.levelSwordSlots = state.levelEnemies;
   state.fiendsSpawned = 0;
   spawnQueue = [];
@@ -3716,6 +4056,10 @@ function finishStartLevel(levelIndex, cfg, baselineScore = 0) {
 
   if (practiceRun?.kind === 'targeted') {
     spawnQueue = [...practiceRun.targetProblems];
+  } else if (practiceRun?.kind === 'basics') {
+    // Endless: spawnNextFiend asks for a fresh encounter while the run clock
+    // still has time left, so the queue stays empty.
+    spawnQueue = [];
   } else if (practiceRun && !state.isShapesMode) {
     spawnQueue = Array.from({ length: 10 }, () => levelIndex);
   } else if (!practiceRun) {
@@ -4077,6 +4421,8 @@ function spawnNextFiend() {
     fiend = createFiend(practiceRun.sourceLevel - 1, FIEND_PORTAL_X);
     fiend.problem = problem;
     if (problem.operation) practiceRun.operations.add(problem.operation);
+  } else if (practiceRun?.kind === 'basics' && basicsRemainingMs() > 0 && spawnQueue.length === 0) {
+    fiend = createFiend(currentLevelIndex, FIEND_PORTAL_X);
   } else if (spawnQueue.length > 0) {
     const levelIndex = spawnQueue.shift();
     fiend = createFiend(levelIndex, FIEND_PORTAL_X);  // problem already assigned inside
@@ -4150,6 +4496,8 @@ function onFiendDead(fiend) {
 }
 
 function checkAllDefeated() {
+  // A Basics run never clears its wave: its clock ends it, not an empty field.
+  if (practiceRun?.kind === 'basics') return false;
   // "Nothing left to fight" = nothing queued, nothing requeued, and no live
   // fiend still on the field. A fiend blown at the camera by wind or storm is
   // already defeated (its sword is filled) but keeps flying for a moment; it
@@ -4786,8 +5134,52 @@ async function savePracticeBadges() {
 function finishPracticeSession() {
   if (!practiceRun || practiceRun.endless || practiceRun.completed) return;
   practiceRun.completed = true;
+  if (practiceRun.kind === 'basics') recordCompletedBasicsRun({ completed: true });
   triggerGameOver(true);
   savePracticeBadges();
+}
+
+// Every finished Basics run is stored with its set, the number of problems
+// solved, how long it lasted and the finish time (to the minute). A run the
+// player ran out of hearts in is kept too, marked as stopped: the solved count
+// is the result either way.
+function recordCompletedBasicsRun({ completed = false } = {}) {
+  const run = practiceRun;
+  if (!run || run.kind !== 'basics' || run.result) return;
+  const snapshot = run.session.snapshot();
+  const plannedMs = run.durationMs || (run.durationMinutes ?? 15) * 60000;
+  const playedMs = completed ? plannedMs : Math.min(Math.max(run.elapsedMs ?? 0, 0), plannedMs);
+  const range = basicsFactorRange(run.basicsSetId);
+  const result = {
+    setId: run.basicsSetId,
+    // A spell can remove a fiend without an answer, so the honest count is the
+    // correct replies, not the enemies that left the field.
+    solved: snapshot.correctAnswers,
+    minutes: Math.max(1, Math.round(playedMs / 60000)),
+    completed,
+    // Only a real mix is worth naming; the whole set is already the set's name.
+    tables: (run.basicsTables?.length ?? 0) < range.length ? [...(run.basicsTables ?? [])] : [],
+    finishedAt: new Date().toISOString(),
+  };
+  try {
+    recordBasicsResult(practiceHistoryStorage(), practiceOwnerId(), result);
+    run.result = result;
+  } catch (error) {
+    // The run itself stays playable; only the history entry is lost.
+    console.error('Unable to record the Basics Math run', error);
+  }
+  renderPracticeResults();
+}
+
+/** The completion card names when the run was recorded, for Basics Math only. */
+function renderPracticeRecordLine() {
+  if (!gameOverRecord) return;
+  const result = practiceRun?.result ?? null;
+  gameOverRecord.hidden = !result;
+  if (!result) return;
+  gameOverRecord.textContent = t('practice.recordedAt', {
+    when: formatBasicsResultTime(result.finishedAt),
+  });
 }
 
 function returnToTitle() {
@@ -4809,6 +5201,7 @@ function returnToTitle() {
   refreshProfileAndLeaderboard();
   profileUI?.refresh();
   refreshPracticeBadges();
+  if (typeof renderPracticeResults === 'function') renderPracticeResults();
 }
 
 // Shows the next scene under the level-clear score: the upcoming level's art
@@ -4950,6 +5343,9 @@ function triggerLevelClear() {
 }
 
 function triggerGameOver(won = false) {
+  // A Basics run that ends early (hearts gone) is still a finished run with a
+  // result worth keeping; the time-up path records before calling in here.
+  if (!won && practiceRun?.kind === 'basics') recordCompletedBasicsRun({ completed: false });
   if (typeof speedrunTimer !== 'undefined') speedrunTimer.abandon();
   // The storm ends with the level, whichever way it ended.
   if (typeof stopStorm === 'function') stopStorm();
@@ -4990,14 +5386,21 @@ function triggerGameOver(won = false) {
       refreshProfileAndLeaderboard();
     }).catch(() => {});
   }
-  gameOverScore.textContent = practiceRun?.endless ? t('overlay.shapesTryAgain') : practiceRun
-    ? t('practice.completed', {
-      correct: practiceRun.session.snapshot().correctAnswers,
-      resolved: practiceRun.session.snapshot().resolvedProblems,
-      encounters: practiceRun.session.snapshot().encountersDefeated,
-    })
-    : state.isShapesMode ? t('overlay.shapesTryAgain')
-    : t('overlay.scoreLine', { score: state.score });
+  gameOverScore.textContent = practiceRun?.endless ? t('overlay.shapesTryAgain')
+    : practiceRun?.kind === 'basics'
+      ? t(won ? 'practice.timedComplete' : 'practice.timedStopped', {
+        solved: practiceRun.session.snapshot().correctAnswers,
+        minutes: practiceRun.durationMinutes,
+      })
+      : practiceRun
+        ? t('practice.completed', {
+          correct: practiceRun.session.snapshot().correctAnswers,
+          resolved: practiceRun.session.snapshot().resolvedProblems,
+          encounters: practiceRun.session.snapshot().encountersDefeated,
+        })
+        : state.isShapesMode ? t('overlay.shapesTryAgain')
+          : t('overlay.scoreLine', { score: state.score });
+  if (typeof renderPracticeRecordLine === 'function') renderPracticeRecordLine();
   renderAttemptAccomplishment('defeat-attempt-summary', won ? completionFeedback : null);
   btnRetryLevel.textContent = practiceRun ? t('practice.retry')
     : won ? t('campaign.replay', { level: state.level }) : t('overlay.retryLevel');
@@ -5043,6 +5446,17 @@ function updateTimer(dt) {
     state.timerActive = false;
     handleWrongAnswer({ timeout: true });
   }
+}
+
+/**
+ * Advances a Basics run's clock and reports whether the run's time is up. Only
+ * gameplay time counts: the loop calls this inside its running/unpaused guard,
+ * so pause and overlays freeze the clock exactly like the speedrun clock.
+ */
+function tickBasicsRunClock(dt) {
+  if (practiceRun?.kind !== 'basics' || practiceRun.completed) return false;
+  practiceRun.elapsedMs = (practiceRun.elapsedMs ?? 0) + dt * 1000;
+  return practiceRun.elapsedMs >= practiceRun.durationMs;
 }
 
 // --- Main game loop ---
@@ -5153,6 +5567,10 @@ function gameLoop(ts) {
   });
 
   if (gameRunning && !paused) {
+    if (tickBasicsRunClock(dt)) {
+      finishPracticeSession();
+      return;
+    }
     if (lowHealthBeat.tick(dt, isLowHealth(state.hearts, state.maxHearts))) {
       globalThis.ffmScreenFx?.play('lowHealthPulse');
     }
@@ -5161,7 +5579,8 @@ function gameLoop(ts) {
 
     if (!activeFiend && !inputDisabled) {
       spawnTimer -= dt;
-      if (spawnTimer <= 0 && (spawnQueue.length > 0 || requeuedFiends.length > 0 || state.isShapesMode)) {
+      if (spawnTimer <= 0 && (spawnQueue.length > 0 || requeuedFiends.length > 0
+        || state.isShapesMode || practiceRun?.kind === 'basics')) {
         spawnNextFiend();
         spawnTimer = spawnInterval;
       }
@@ -5379,7 +5798,8 @@ function gameLoop(ts) {
       : t('feedback.shapesAnswerShort', { count: activeFiend.problem.answer }),
   } : null;
   const practiceProgress = practiceRun?.session.snapshot();
-  const encounterProgress = practiceRun?.endless ? null : state.isShapesMode
+  const basicsRun = practiceRun?.kind === 'basics';
+  const encounterProgress = practiceRun?.endless || basicsRun ? null : state.isShapesMode
     ? { defeated: practiceProgress.resolvedProblems, total: 10, slots: state.levelSwordSlots || 10 }
     : {
       defeated: state.enemiesDefeated,
@@ -5399,9 +5819,15 @@ function gameLoop(ts) {
     questionActive: Boolean(activeFiend && !inputDisabled &&
       !['reveal', 'retreat', 'death'].includes(activeFiend.state)),
     healingEnabled: !practiceRun,
-    progressLabel: !encounterProgress ? '' : state.isShapesMode
-      ? t('practice.questionProgress', { resolved: encounterProgress.defeated, total: encounterProgress.total })
-      : formatEncounterLabel(encounterProgress, { compact: compactHeader, translate: t }),
+    // A Basics run shows the problems solved so far and the clock it is racing.
+    progressLabel: basicsRun
+      ? t('practice.basicsProgress', {
+        solved: practiceProgress.correctAnswers,
+        time: formatBasicsCountdown(basicsRemainingMs()),
+      })
+      : !encounterProgress ? '' : state.isShapesMode
+        ? t('practice.questionProgress', { resolved: encounterProgress.defeated, total: encounterProgress.total })
+        : formatEncounterLabel(encounterProgress, { compact: compactHeader, translate: t }),
     rewardLabel: practiceRun || state.isShapesMode ? '' : lastCastAbility && inputDisabled
       ? t('reward.cast', { ability: t(`reward.${lastCastAbility}`) }) : rewardLabel,
     healLabel: practiceRun ? '' : t('gameplay.healProgress', {
@@ -5723,7 +6149,9 @@ if (platform.isApp) {
         translate: t,
         getLocale,
         totalLevels: TOTAL_LEVELS,
-        practiceKinds: PRACTICE_KINDS,
+        // Basics Math is the one practice mode behind an unlock, so the notice's
+        // "the practice modes are free" line counts only the free ones.
+        practiceKinds: PRACTICE_KINDS.filter((kind) => kind !== 'basics'),
       });
       // An owner of the unlock has nothing left to ask about what is free, so
       // the entries are only revealed once the store status says locked:
@@ -5845,6 +6273,7 @@ onLocaleChange(() => {
   audioPreferenceStatus();
   renderSkillIntro();
   renderPracticeDescription();
+  renderPracticeResults();
   updatePracticeLevelHint();
   if (practiceBadgeRetryButton) practiceBadgeRetryButton.textContent = t('practice.retryBadgeSave');
   refreshPracticeBadges();
@@ -5880,15 +6309,22 @@ onLocaleChange(() => {
       : campaignWon ? 'campaign.victory' : 'overlay.gameOverTitle');
     btnRetryLevel.textContent = practiceRun ? t('practice.retry')
       : campaignWon ? t('campaign.replay', { level: state.level }) : t('overlay.retryLevel');
-    gameOverScore.textContent = practiceRun?.endless ? t('overlay.shapesTryAgain') : practiceRun
-      ? t('practice.completed', {
-        correct: practiceRun.session.snapshot().correctAnswers,
-        resolved: practiceRun.session.snapshot().resolvedProblems,
-        encounters: practiceRun.session.snapshot().encountersDefeated,
-      })
-      : state.isShapesMode
-      ? t('overlay.shapesTryAgain')
-      : t('overlay.scoreLine', { score: state.score });
+    gameOverScore.textContent = practiceRun?.endless ? t('overlay.shapesTryAgain')
+      : practiceRun?.kind === 'basics'
+        ? t(campaignWon ? 'practice.timedComplete' : 'practice.timedStopped', {
+          solved: practiceRun.session.snapshot().correctAnswers,
+          minutes: practiceRun.durationMinutes,
+        })
+        : practiceRun
+          ? t('practice.completed', {
+            correct: practiceRun.session.snapshot().correctAnswers,
+            resolved: practiceRun.session.snapshot().resolvedProblems,
+            encounters: practiceRun.session.snapshot().encountersDefeated,
+          })
+          : state.isShapesMode
+            ? t('overlay.shapesTryAgain')
+            : t('overlay.scoreLine', { score: state.score });
+    if (typeof renderPracticeRecordLine === 'function') renderPracticeRecordLine();
   }
 });
 

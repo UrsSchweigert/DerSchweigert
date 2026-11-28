@@ -234,12 +234,30 @@
               <option value="elite" data-i18n="practice.kind.elite">Elite practice</option>
               <option value="recovery" data-i18n="practice.kind.recovery">Recovery practice</option>
               <option value="shapes" data-i18n="practice.kind.shapes">Shape counting</option>
+              <option value="basics" data-i18n="practice.kind.basics">Basics math</option>
             </select>
             <p id="practice-description" data-i18n="practice.description.targeted">Revisit up to five recent mistakes from the selected level, without a timer. Play that level first to collect mistakes.</p>
             <p id="practice-unscored" data-i18n="practice.unscoredDescription">All training is unscored and does not advance the campaign or unlock levels.</p>
-            <label for="practice-level-select" data-i18n="practice.level">Level</label>
+            <label for="practice-level-select" id="practice-level-label" data-i18n="practice.level">Level</label>
             <select id="practice-level-select"></select>
+            <label for="practice-set" id="practice-set-label" data-i18n="practice.set" hidden>Exercise set</label>
+            <select id="practice-set" hidden></select>
+            <!-- Basics Math only: the run length is chosen here, and the finished
+                 runs are listed. Problems keep coming until the clock runs out. -->
+            <div id="practice-duration-row" class="practice-duration-row" hidden>
+              <label for="practice-duration" data-i18n="practice.duration">Run length</label>
+              <select id="practice-duration"></select>
+            </div>
+            <!-- Which tables a mixed run asks; a squares/roots set has none. -->
+            <div id="practice-tables-row" class="practice-tables-row" hidden>
+              <span id="practice-tables-label" class="practice-tables-label" data-i18n="practice.tables">Times tables</span>
+              <div id="practice-tables-chips" class="practice-tables-chips" role="group" aria-labelledby="practice-tables-label"></div>
+            </div>
             <p id="practice-level-hint" class="practice-level-hint" role="status" aria-live="polite"></p>
+            <div id="practice-basics-results" class="practice-basics-results" hidden>
+              <p class="practice-results-heading" data-i18n="practice.resultsHeading">Finished runs</p>
+              <ol id="practice-basics-results-list" class="practice-results-list"></ol>
+            </div>
             <div id="practice-badges" class="practice-badges" aria-label="Practice badges" data-i18n-aria-label="practice.badges"></div>
             <p id="practice-status" class="screen-status" role="status" aria-live="polite"></p>
             <button type="button" id="btn-start-practice" class="action-primary" data-i18n="practice.start">Start practice</button>
@@ -497,6 +515,7 @@
     <div class="overlay-card">
       <h2 id="game-over-title" data-i18n="overlay.gameOverTitle">Game Over</h2>
       <p id="game-over-score"></p>
+      <p id="game-over-record" hidden></p>
       <p id="defeat-attempt-summary"></p>
       <button class="diff-btn" id="btn-retry-level" data-i18n="overlay.retryLevel">Try This Level Again</button>
       <button class="diff-btn" id="btn-return-title" data-i18n="overlay.returnTitle">Return to Title</button>

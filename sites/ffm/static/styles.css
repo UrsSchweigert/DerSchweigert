@@ -3073,6 +3073,66 @@ input:focus-visible, select:focus-visible, button:focus-visible,
 #practice-description, #practice-unscored, #practice-badges, #practice-status, #btn-start-practice, #music-volume-status {
   grid-column: 1 / -1;
 }
+/* Basics Math: one inline row (the grid pairs belong to the two selectors
+ * above), and the completed-run list under the hint. */
+.practice-duration-row {
+  grid-column: 1 / -1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-width: 0;
+}
+.practice-duration-row select { width: auto; flex: 0 0 auto; }
+.practice-tables-row {
+  grid-column: 1 / -1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+}
+.practice-tables-label { color: var(--ivory-muted); }
+.practice-tables-chips {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 4px;
+}
+/* One chip per table; pressed means "practise this one". The size keeps a
+ * 15-chip row tappable at 320px without the panel growing a scrollbar of its
+ * own (the submenu already scrolls). */
+.practice-table-chip {
+  min-width: 34px;
+  min-height: 34px;
+  padding: 2px 6px;
+  color: var(--ivory);
+  background: var(--ink-900);
+  border: 1px solid var(--brass-deep);
+  border-radius: 4px;
+  font: inherit;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+.practice-table-chip[aria-pressed="true"] {
+  color: var(--ink-900);
+  background: var(--brass-light);
+  border-color: var(--brass-light);
+}
+.practice-basics-results { grid-column: 1 / -1; min-width: 0; }
+.practice-results-heading {
+  margin: 0;
+  color: var(--ivory-muted);
+  text-align: center;
+}
+.practice-results-list {
+  margin: 0;
+  padding-left: 18px;
+  color: var(--ivory);
+  max-height: 104px;
+  overflow-y: auto;
+}
+.practice-results-list li { overflow-wrap: anywhere; }
 /* The practice panel is opened by the real #btn-open-practice button (primary
  * tier); the <summary> stays in the DOM only because <details> needs it. */
 #practice-panel > summary { display: none; }
@@ -3480,6 +3540,10 @@ body:not(.legal-body) {
   #practice-panel[open] .practice-controls > #practice-kind { grid-area: 2 / 1; }
   #practice-panel[open] .practice-controls > label[for="practice-level-select"] { grid-area: 1 / 2; }
   #practice-panel[open] .practice-controls > #practice-level-select { grid-area: 2 / 2; }
+  /* Basics Math swaps the level pair for the exercise-set pair; only one of the
+     two is visible, so they share the second column. */
+  #practice-panel[open] .practice-controls > label[for="practice-set"] { grid-area: 1 / 2; }
+  #practice-panel[open] .practice-controls > #practice-set { grid-area: 2 / 2; }
   #practice-panel[open] #btn-start-practice { grid-column: 1; }
   #practice-panel[open] #btn-close-practice { grid-column: 2; }
 }
