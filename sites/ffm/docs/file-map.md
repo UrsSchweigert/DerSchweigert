@@ -21,6 +21,20 @@ for a level jump. Re-run it whenever the ladder, the score scale or a level's
 `waveSize`/`fiendHP` changes, and keep the shipped values honest with
 `level-baseline-score.test.js`, which asserts all 60 entries match the model.
 
+### Change a practice mode or add one
+
+`static/game/practice-session.js` holds the mode list (`PRACTICE_KINDS`) and the
+session rules (encounter limits or an unbounded clock, unscored, badges). Shapes generates its own
+questions in `static/game/shapes.js`; Basics Math keeps its exercise sets, their
+Campaign I/II unlock gates and its tables/squares generator in
+`static/game/basics-math.js`. Its run-length presets live there too, and
+`static/game/basics-results.js` keeps the per-player local history of finished
+runs (set, problems solved, length, completion time) out of the API. Adding a
+kind also means an option in `static/index.html`, its `practice.kind.*`,
+`practice.description.*` and `practice.badge.*` strings in `static/game/i18n.js`,
+and the mode list literal in `main.js`'s `startPracticeSession` (the integration
+test walks `PRACTICE_KINDS` and checks every kind has a description).
+
 ### Warden boss locks (prototype)
 
 `sites/ffm/static/game/boss-rules.js` and `static/game/boss-problems.js` are the

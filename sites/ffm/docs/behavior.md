@@ -103,6 +103,31 @@ Part of the [Arithmo Slayer system documentation](../README.md). Gameplay, pract
   Its session panel explains the selected level from the authorized level config (operations, result ceiling,
   answer choices) and reports locked levels instead of guessing; that one-line explanation stays centred
   under the level selector.
+- "Basics Math" (German "Grundrechnen") is the one practice mode that teaches tables instead of a campaign
+  level, so it swaps the level selector for an exercise set: small times tables (x·y with x,y 1–10), big
+  times tables (x,y 1–15) and squares/roots (n² and √n² for n 2–15, answered as text). Four answers, no
+  repeated fact while an unseen one remains, unscored like every training mode. The sets sit behind the two
+  unlocks, not behind progress: the small tables come with the Campaign I full unlock (the web
+  subscription or the app's full-unlock product), the big tables and the squares/roots with Campaign II
+  (`static/game/basics-math.js`, `basicsSetUnlocked`). The panel explains a locked set instead of starting
+  it, and the start path re-reads the entitlement so a stale unlock cannot launch one.
+- Inside a tables set, one chip per table chooses the mix ("just the 3 and 7"): one factor is always a
+  chosen table and the other the whole range, either way round (3 × 8 and 8 × 3). Every chip pressed means
+  the whole set; the last table cannot be switched off; the mix is remembered per player and set, and a real
+  mix (not the whole set) is named in the hint and stored with the run.
+- A Basics Math run is a timed drill, not ten encounters: the player picks the run length in the panel
+  (5, 10, 15, 20 or 30 minutes, default 15; remembered per player), problems keep coming for the whole
+  stretch and the run ends when that clock is up. Only gameplay time counts, so pauses and overlays freeze
+  it; the header shows "Solved N · m:ss" instead of the encounter row, which is hidden because the
+  wave never ends. The per-question timer still comes from the chosen difficulty. Running out of hearts ends
+  the run early.
+- Every finished Basics run (time up, or hearts gone) is written to a local, per-player history
+  (`static/game/basics-results.js`): exercise set, number of problems solved, how long it lasted, whether it
+  ran to the end, and the finish time to the minute ("28.11. 11:07"), newest first, capped at 50. The history
+  never leaves the device and is never submitted: it is a personal record, not a ranking, and it does not
+  change the existing rule that practice never submits scores, completes levels or unlocks content. The
+  completion card states the solved count and names the recorded time; the panel lists the latest five under
+  "Finished runs".
 - The score-history chart shows the total high score in the app: the sum of the player's per-level
   bests after every saved result, seeded from level bests older than the kept history window so the
   last point equals the listed bests. The web has no per-level bests to add up, so its chart plots one

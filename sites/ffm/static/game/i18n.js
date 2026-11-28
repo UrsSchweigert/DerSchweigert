@@ -259,6 +259,62 @@ const DICTIONARY = {
   'practice.kind.elite': { en: 'Elite practice', de: 'Elite-Training' },
   'practice.kind.recovery': { en: 'Recovery practice', de: 'Aufholtraining' },
   'practice.kind.shapes': { en: 'Shape counting', de: 'Formen zählen' },
+  'practice.kind.basics': { en: 'Basics math', de: 'Grundrechnen' },
+  // Basics Math teaches tables, not a level, so it swaps the level selector for
+  // an exercise set. The small tables are the Campaign I unlock; the big tables
+  // and the squares/roots are Campaign II (see basics-math.js).
+  'practice.set': { en: 'Exercise set', de: 'Übungssatz' },
+  'practice.set.tables-1-10': { en: 'Small times tables 1–10', de: 'Kleines 1×1 (1–10)' },
+  'practice.set.tables-1-15': { en: 'Big times tables 1–15', de: 'Großes 1×1 (1–15)' },
+  'practice.set.squares-roots': { en: 'Squares and square roots', de: 'Quadratzahlen und Wurzeln' },
+  'practice.setUnlock.campaign1': { en: '· full unlock', de: '· Vollversion' },
+  'practice.setUnlock.campaign2': { en: '· Campaign II', de: '· Abenteuer II' },
+  // The same two gates as a sentence object ("unlocks with the full unlock"),
+  // where the option's leading bullet would read like a typo.
+  'practice.setGate.campaign1': { en: 'the full unlock', de: 'der Vollversion' },
+  'practice.setGate.campaign2': { en: 'Campaign II', de: 'Abenteuer II' },
+  'practice.setHint': {
+    en: 'Problems keep coming for {minutes} minutes from {set}, unscored.',
+    de: '{minutes} Minuten lang Aufgaben aus {set}, ohne Punkte.',
+  },
+  'practice.duration': { en: 'Run length', de: 'Rundenlänge' },
+  'practice.durationMinutes': { en: '{minutes} min', de: '{minutes} Min.' },
+  // Which tables a mixed run asks; every chip is one times table.
+  'practice.tables': { en: 'Times tables', de: 'Einmaleins-Reihen' },
+  'practice.setHintTables': {
+    en: 'Problems from the {tables} times tables for {minutes} minutes, unscored.',
+    de: '{minutes} Minuten lang Aufgaben aus den Reihen {tables}, ohne Punkte.',
+  },
+  // The live run readout: problems solved so far and the clock still to go.
+  'practice.basicsProgress': {
+    en: 'Solved {solved} · {time}',
+    de: 'Gelöst {solved} · {time}',
+  },
+  // The local history of finished Basics runs. Practice stays unscored, so the
+  // list is a personal record, never a ranking.
+  'practice.resultsHeading': { en: 'Finished runs', de: 'Beendete Runden' },
+  'practice.resultLine': {
+    en: '{when} · {set} · {solved} solved · {minutes} min',
+    de: '{when} · {set} · {solved} gelöst · {minutes} Min.',
+  },
+  'practice.resultTables': { en: 'tables {tables}', de: 'Reihen {tables}' },
+  'practice.resultLineStopped': {
+    en: '{when} · {set} · {solved} solved · stopped after {minutes} min',
+    de: '{when} · {set} · {solved} gelöst · nach {minutes} Min. beendet',
+  },
+  'practice.recordedAt': { en: 'Recorded {when}', de: 'Erfasst {when}' },
+  'practice.timedComplete': {
+    en: 'Time! {solved} problems solved in {minutes} minutes.',
+    de: 'Zeit! {solved} Aufgaben in {minutes} Minuten gelöst.',
+  },
+  'practice.timedStopped': {
+    en: 'Run ended early: {solved} problems solved.',
+    de: 'Runde vorzeitig beendet: {solved} Aufgaben gelöst.',
+  },
+  'practice.setLockedHint': {
+    en: 'Locked: included in {gate}.',
+    de: 'Gesperrt: In {gate} enthalten.',
+  },
   'practice.level': { en: 'Source level', de: 'Ausgangslevel' },
   // Small explanation of the selected level, built from the same authorized
   // level config the session runs on (operations, result ceiling, answer
@@ -319,6 +375,10 @@ const DICTIONARY = {
   'practice.retryBadgeSave': { en: 'Retry badge save', de: 'Abzeichen erneut speichern' },
   'practice.badge.practice-targeted': { en: 'Targeted practice', de: 'Gezieltes Üben' },
   'practice.badge.practice-shapes': { en: 'Shape practice', de: 'Formen-Training' },
+  'practice.badge.practice-basics': { en: 'Basics math', de: 'Grundrechnen' },
+  'practice.badge.practice-basics-tables-1-10': { en: 'Small times tables', de: 'Kleines 1×1' },
+  'practice.badge.practice-basics-tables-1-15': { en: 'Big times tables', de: 'Großes 1×1' },
+  'practice.badge.practice-basics-squares-roots': { en: 'Squares and roots', de: 'Quadratzahlen und Wurzeln' },
   'practice.badge.practice-addition': { en: 'Addition practice', de: 'Additionstraining' },
   'practice.badge.practice-subtraction': { en: 'Subtraction practice', de: 'Subtraktionstraining' },
   'practice.badge.practice-multiplication': { en: 'Multiplication practice', de: 'Multiplikationstraining' },
@@ -379,6 +439,10 @@ const DICTIONARY = {
   'practice.description.recovery': {
     en: 'Ten encounters. Five distinct correct answers restore one missing heart, up to twice per session.',
     de: 'Zehn Gegnerbegegnungen. Fünf verschiedene richtige Antworten geben ein fehlendes Herz zurück, höchstens zweimal pro Runde.',
+  },
+  'practice.description.basics': {
+    en: 'A timed drill from one exercise set: the small times tables (1–10), the big times tables (1–15), or squares and square roots. Problems keep coming until the run clock is up.',
+    de: 'Ein Zeittraining aus einem Übungssatz: kleines 1×1 (1–10), großes 1×1 (1–15) oder Quadratzahlen und Wurzeln. Die Aufgaben laufen, bis die Rundenzeit um ist.',
   },
   'practice.description.shapes': {
     en: 'Count the shapes in ten questions. The Shapes button on the Play screen instead starts an endless session.',

@@ -123,7 +123,7 @@ test('notice copy is short, kind and never implies a subscription or a purchase'
 
 test('the free-level range and the unlock come from the real gating', async () => {
   assert.deepEqual([...PRACTICE_KINDS].sort(),
-    ['assisted', 'elite', 'recovery', 'shapes', 'short', 'targeted'],
+    ['assisted', 'basics', 'elite', 'recovery', 'shapes', 'short', 'targeted'],
     'a new practice mode still decides whether the plea to try mentions practice');
 
   const two = notice({ platform: fakePlatform({ freeLevels: 2 }) });
@@ -284,7 +284,8 @@ test('main.js, index.html and the modal focus helper wire the notice app-only', 
   const main = await readFile(join(root, '..', 'static', 'game', 'main.js'), 'utf8');
   assert.doesNotMatch(main, /from '\.\/first-open-notice\.js'/, 'no static import on the web build');
   assert.equal((main.match(/import\('\.\/first-open-notice\.js'\)/g) ?? []).length, 1);
-  assert.match(main, /createFirstOpenNotice\(\{[\s\S]*?practiceKinds: PRACTICE_KINDS/);
+  assert.match(main, /createFirstOpenNotice\(\{[\s\S]*?practiceKinds: PRACTICE_KINDS\.filter\(\(kind\) => kind !== 'basics'\)/,
+    'the free-practice plea must not count the unlocked Basics Math mode');
   assert.match(main, /totalLevels: TOTAL_LEVELS/);
   assert.match(main, /firstOpenNotice\?\.render\(\)/);
   assert.match(main, /'first-open-notice-help', 'btn-notice-help'/);
