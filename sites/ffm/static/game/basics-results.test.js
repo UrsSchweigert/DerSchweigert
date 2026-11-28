@@ -141,13 +141,16 @@ test('one history line names the set, the solved count, the length and the time'
   const translate = (key, values) =>
     `${key}|${values.when}|${values.set}|${values.solved}|${values.minutes}`;
   const nameForSet = (id) => `set:${id}`;
-  assert.equal(formatBasicsResult(run(), { translate, nameForSet }),
+  // Local wall-clock time, so the line reads the same in every CI time zone.
+  const localRun = (overrides = {}) =>
+    run({ finishedAt: new Date(2026, 10, 28, 11, 7).toISOString(), ...overrides });
+  assert.equal(formatBasicsResult(localRun(), { translate, nameForSet }),
     'practice.resultLine|28.11. 11:07|set:tables-1-10|23|15');
-  assert.equal(formatBasicsResult(run({ completed: false, minutes: 3 }), { translate, nameForSet }),
+  assert.equal(formatBasicsResult(localRun({ completed: false, minutes: 3 }), { translate, nameForSet }),
     'practice.resultLineStopped|28.11. 11:07|set:tables-1-10|23|3');
   const withTables = (key, values) => key === 'practice.resultTables'
     ? `tables:${values.tables}`
     : `${key}|${values.when}|${values.set}|${values.solved}|${values.minutes}`;
-  assert.equal(formatBasicsResult(run({ tables: [3, 7] }), { translate: withTables, nameForSet }),
+  assert.equal(formatBasicsResult(localRun({ tables: [3, 7] }), { translate: withTables, nameForSet }),
     'practice.resultLine|28.11. 11:07|set:tables-1-10|23|15 · tables:3, 7');
 });
